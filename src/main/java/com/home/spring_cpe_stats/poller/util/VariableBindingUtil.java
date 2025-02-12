@@ -8,6 +8,7 @@ public class VariableBindingUtil {
         String mac = variableBinding.toValueString();
         mac = mac.replace(":", "");
         mac = mac.replace("-", "");
+        mac = mac.isEmpty() ? "0" : mac;
         return Long.parseLong(mac, 16);
     }
 
@@ -34,4 +35,10 @@ public class VariableBindingUtil {
     public static Integer parseSNR(VariableBinding variableBinding) {
         return Integer.parseInt(variableBinding.toValueString());
     }
+
+    public static Integer parseInt(VariableBinding variableBinding) {
+        return Integer.parseInt(variableBinding.toValueString());
+    }
+
+
 }
