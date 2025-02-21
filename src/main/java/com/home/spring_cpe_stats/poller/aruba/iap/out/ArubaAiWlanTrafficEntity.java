@@ -1,10 +1,7 @@
 package com.home.spring_cpe_stats.poller.aruba.iap.out;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -12,6 +9,7 @@ import java.time.LocalDateTime;
 @Table(name = "aruba_iap_wlan_traffic_stg")
 @NoArgsConstructor
 @Getter
+@Setter // add setter for jdbc BeanPropertyRowMapper
 @Builder
 @AllArgsConstructor
 public class ArubaAiWlanTrafficEntity {
