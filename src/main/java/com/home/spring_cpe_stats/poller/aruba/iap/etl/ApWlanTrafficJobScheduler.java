@@ -21,7 +21,7 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
 
     @Override
     @Transactional
-    @Scheduled(fixedRate = 60_000) // 1 min
+    @Scheduled(fixedRate = 3_600_000) // 1 hour
     public void start() {
         log.info("start");
 
@@ -33,7 +33,7 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                 from aruba_iap_wlan_traffic_stg aiwts
                 where aiwts.mark=0
                 order by aiwts.poll_time,aiwts.id
-                limit 200
+                limit 1000
                 for update
                 """,
                 new BeanPropertyRowMapper<>(ArubaAiWlanTrafficEntity.class)
