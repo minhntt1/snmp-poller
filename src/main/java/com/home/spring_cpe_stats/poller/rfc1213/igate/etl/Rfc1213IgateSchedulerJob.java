@@ -34,7 +34,7 @@ public class Rfc1213IgateSchedulerJob implements BaseScheduler {
             from rfc1213_iftable_traffic_stg rits
             where mark=0
             order by rits.poll_time,rits.id
-            limit 1000
+            limit 100000
             for update""",
             new BeanPropertyRowMapper<>(Rfc1213IgateIftableTrafficEntity.class)
         );
