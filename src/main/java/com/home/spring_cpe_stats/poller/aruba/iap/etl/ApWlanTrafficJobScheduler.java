@@ -33,7 +33,7 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                 from aruba_iap_wlan_traffic_stg aiwts
                 where aiwts.mark=0
                 order by aiwts.poll_time,aiwts.id
-                limit 1000
+                limit 100000
                 for update
                 """,
                 new BeanPropertyRowMapper<>(ArubaAiWlanTrafficEntity.class)
