@@ -1,6 +1,7 @@
 package com.home.spring_cpe_stats.poller.aruba.iap.in;
 
 import com.home.spring_cpe_stats.poller.aruba.iap.out.*;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.snmp4j.Snmp;
@@ -21,6 +22,7 @@ public class ArubaSnmpAiPollingScheduler {
     private final ArubaSnmpAiTarget arubaSnmpAiTarget = new ArubaSnmpAiTarget("udp:192.168.100.253/161");
 
     @Scheduled(fixedRate = 300_000)  // 5 mins polling for ap info
+    @Transactional
     public void pollApInfo() {
         TableUtils tableUtils = new TableUtils(snmp, arubaSnmpAiTarget.obtainPduFactory());
 
@@ -38,6 +40,7 @@ public class ArubaSnmpAiPollingScheduler {
     }
 
     @Scheduled(fixedRate = 60_000) // 1 mins polling for client info
+    @Transactional
     public void pollClientInfo() {
         TableUtils tableUtils = new TableUtils(snmp, arubaSnmpAiTarget.obtainPduFactory());
 
@@ -55,6 +58,7 @@ public class ArubaSnmpAiPollingScheduler {
     }
 
     @Scheduled(fixedRate = 300_000) // 5 mins polling for wlan traffic
+    @Transactional
     public void pollWlanTraffic() {
         TableUtils tableUtils = new TableUtils(snmp, arubaSnmpAiTarget.obtainPduFactory());
 

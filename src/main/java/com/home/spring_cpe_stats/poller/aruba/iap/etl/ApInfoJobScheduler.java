@@ -44,10 +44,10 @@ public class ApInfoJobScheduler implements BaseScheduler {
                     		row_number() over(partition by aiais.ap_mac,aiais.ap_name order by aiais.poll_time desc,aiais.id desc) as rn
                     		from aruba_iap_ap_info_stg aiais
                     		where aiais.mark=1
+                    		for update
                         ) x
                         where x.rn=1
                     )
-                    for update
                 ), cte2 as (-- select unprocessed rows, earliest, limit to 200
                     select
                     aiais.id
