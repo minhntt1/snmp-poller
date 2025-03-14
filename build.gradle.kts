@@ -27,6 +27,9 @@ dependencies {
     // https://mvnrepository.com/artifact/org.snmp4j/snmp4j
     implementation("org.snmp4j:snmp4j:3.8.2")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-web") {
+        exclude(group = "org.springframework.boot", module = "spring-boot-starter-tomcat")
+    }
     compileOnly("org.projectlombok:lombok")
     runtimeOnly("com.mysql:mysql-connector-j")
     annotationProcessor("org.projectlombok:lombok")
