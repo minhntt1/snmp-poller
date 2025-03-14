@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.snmp4j.Snmp;
 import org.snmp4j.util.TableUtils;
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +15,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Profile("!local")
 public class ArubaSnmpAiPollingScheduler {
     private final Snmp snmp;
     private final ArubaAiApInfoRepository arubaAiApInfoRepository;
