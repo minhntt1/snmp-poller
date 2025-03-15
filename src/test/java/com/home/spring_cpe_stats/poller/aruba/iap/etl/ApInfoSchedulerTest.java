@@ -21,6 +21,13 @@ public class ApInfoSchedulerTest {
     @Test
     @Transactional
     void testTransaction() {
-        jdbcTemplate.execute("insert into ap_dim(ap_mac,ap_name) values(1234,'abcd')");
+        jdbcTemplate.queryForList("SELECT @@transaction_ISOLATION;").forEach(System.out::println);
+
+        jdbcTemplate.execute("insert into aruba_iap_device_info_stg(poll_time,device_mac,device_wlan_mac,device_ip,device_ap_ip,device_name,device_rx,device_tx,device_snr,device_uptime_seconds,\n" +
+                "mark) values('2024-01-01',123,123,123,123,'abc',123,13,13,13,0)");
+
+//        jdbcTemplate.execute("select * from ap_dim for update");
+
+        System.out.println();
     }
 }
