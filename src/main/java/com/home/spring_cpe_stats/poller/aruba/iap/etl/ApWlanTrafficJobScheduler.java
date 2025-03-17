@@ -1,11 +1,9 @@
 package com.home.spring_cpe_stats.poller.aruba.iap.etl;
 
-import com.home.spring_cpe_stats.poller.aruba.iap.out.ArubaAiApInfoEntity;
 import com.home.spring_cpe_stats.poller.aruba.iap.out.ArubaAiWlanTrafficEntity;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.batch.BatchTaskExecutor;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -13,6 +11,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -23,37 +23,79 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
 
     @Override
     @Transactional
-    @Scheduled(fixedRate = 3_600_000) // 1 hour
+    @Scheduled(fixedRate = 600_000) // 10 min
     public void start() {
         log.info("start");
 
-        List<ArubaAiWlanTrafficEntity> arubaAiWlanTrafficEntities = jdbcTemplate
+        List<ArubaAiWlanTrafficEntity> unprocessedList = jdbcTemplate
             .query("""
-                -- just select mark = 0 because don't care value in the past
                 select
                 aiwts.id
                 from aruba_iap_wlan_traffic_stg aiwts
                 where aiwts.mark=0
                 order by aiwts.poll_time,aiwts.id
-                limit 100000
+                limit 10000
                 for update
                 """,
                 new BeanPropertyRowMapper<>(ArubaAiWlanTrafficEntity.class)
             );
 
-        log.info("total records: {}", arubaAiWlanTrafficEntities.size());
+        if (unprocessedList.isEmpty()) {
+            log.info("no aruba ai wlan traffic record found");
+            return;
+        }
 
-        long minId = arubaAiWlanTrafficEntities.stream()
+        String unprocessedIds =
+            unprocessedList.stream()
             .map(ArubaAiWlanTrafficEntity::getId)
-            .min(Long::compareTo)
-            .orElse(0L);
+            .map(String::valueOf)
+            .collect(Collectors.joining(",","(",")"));
 
-        long maxId = arubaAiWlanTrafficEntities.stream()
+        List<ArubaAiWlanTrafficEntity> processedList = jdbcTemplate
+            .query(String.format("""
+                with cte as(
+                    select
+                    distinct
+                    date(aiwts.poll_time),
+                    time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00')),
+                    aiwts.wlan_mac,
+                    aiwts.wlan_essid
+                    from aruba_iap_wlan_traffic_stg aiwts
+                    where aiwts.id in %s
+                )
+                select
+                id
+                from (
+                    select
+                    aiwts.id,
+                    row_number() over(partition by date(aiwts.poll_time),time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00')),aiwts.wlan_mac,aiwts.wlan_essid 
+                    order by aiwts.poll_time desc,aiwts.id desc) as rn
+                    from (
+                        select
+                        *
+                        from aruba_iap_wlan_traffic_stg aiwts
+                        where mark=1
+                        order by id desc
+                        limit 100 -- limit to 100 because this table is small ~ last 2 hrs
+                        for share
+                    ) aiwts
+                    where (date(aiwts.poll_time),time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00')),aiwts.wlan_mac,aiwts.wlan_essid)
+                    in (select * from cte)
+                ) x
+                where x.rn=1
+                """,
+                unprocessedIds),
+                new BeanPropertyRowMapper<>(ArubaAiWlanTrafficEntity.class)
+            );
+
+        String unprocessedAndProcessedIds = Stream.concat(processedList.stream(), unprocessedList.stream())
             .map(ArubaAiWlanTrafficEntity::getId)
-            .max(Long::compareTo)
-            .orElse(0L);
+            .map(String::valueOf)
+            .collect(Collectors.joining(",","(",")"));
 
-        log.info("min id: {}, max id: {}", minId, maxId);
+        log.info("unprocessed ids: {}", unprocessedIds);
+
+        log.info("unprocessedAndProcessedIds: {}", unprocessedAndProcessedIds);
 
         /*
         * ap_dim
@@ -75,9 +117,9 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                     from aruba_iap_wlan_traffic_stg aiwts
                     left join ap_dim ad on aiwts.wlan_ap_mac=ad.ap_mac
                     where ad.ap_key is null
-                    and aiwts.id between %d and %d
+                    and aiwts.id in %s
                 )""",
-                minId, maxId
+                unprocessedIds
             )
         );
 
@@ -93,9 +135,9 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                     left join gw_iface_dim gid on aiwts.wlan_mac=gid.iface_mac
                     and aiwts.wlan_essid=gid.iface_name
                     where gid.iface_key is null
-                    and aiwts.id between %d and %d
+                    and aiwts.id in %s
                 )""",
-                minId,maxId
+                unprocessedIds
             )
         );
 
@@ -108,9 +150,9 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                     date(aiwts.poll_time)
                     from aruba_iap_wlan_traffic_stg aiwts
                     left join date_dim dd on date(aiwts.poll_time)=dd.date
-                    where dd.date_key is null and aiwts.id between %d and %d
+                    where dd.date_key is null and aiwts.id in %s
                 );""",
-                minId, maxId
+                unprocessedIds
             )
         );
 
@@ -123,9 +165,9 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                     time_to_sec(time(aiwts.poll_time))
                     from aruba_iap_wlan_traffic_stg aiwts
                     left join time_dim td on time_to_sec(time(aiwts.poll_time))=td.time
-                    where td.time_key is null and aiwts.id between %d and %d
+                    where td.time_key is null and aiwts.id in %s
                 )""",
-                minId, maxId)
+                unprocessedIds)
         );
 
         // insert hour into time dim
@@ -136,9 +178,9 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                     distinct time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00'))
                     from aruba_iap_wlan_traffic_stg aiwts
                     left join time_dim td on time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00'))=td.time
-                    where td.time_key is null and aiwts.id between %d and %d
+                    where td.time_key is null and aiwts.id in %s
                 )""",
-            minId, maxId)
+            unprocessedIds)
         );
 
         log.info("insert into dim table completed");
@@ -166,32 +208,32 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                             -- then accept cuurent value
                             -- if there is no previous value, then consider previous is current value
                             aiwts.wlan_tx - if(
-                                lag(aiwts.wlan_tx,1,aiwts.wlan_tx) over(partition by dd.date_key,td.time_key,gid.iface_key order by aiwts.poll_time)
+                                lag(aiwts.wlan_tx,1,aiwts.wlan_tx) over(partition by dd.date_key,td.time_key,gid.iface_key order by aiwts.poll_time,aiwts.id)
                                 >
                                 aiwts.wlan_tx,
                                 0,
-                                lag(aiwts.wlan_tx,1,aiwts.wlan_tx) over(partition by dd.date_key,td.time_key,gid.iface_key order by aiwts.poll_time)
+                                lag(aiwts.wlan_tx,1,aiwts.wlan_tx) over(partition by dd.date_key,td.time_key,gid.iface_key order by aiwts.poll_time,aiwts.id)
                             )
                             +
                             aiwts.wlan_rx - if(
-                                lag(aiwts.wlan_rx,1,aiwts.wlan_rx) over(partition by dd.date_key,td.time_key,gid.iface_key order by aiwts.poll_time)
+                                lag(aiwts.wlan_rx,1,aiwts.wlan_rx) over(partition by dd.date_key,td.time_key,gid.iface_key order by aiwts.poll_time,aiwts.id)
                                 >
                                 aiwts.wlan_rx,
                                 0,
-                                lag(aiwts.wlan_rx,1,aiwts.wlan_rx) over(partition by dd.date_key,td.time_key,gid.iface_key order by aiwts.poll_time)
+                                lag(aiwts.wlan_rx,1,aiwts.wlan_rx) over(partition by dd.date_key,td.time_key,gid.iface_key order by aiwts.poll_time,aiwts.id)
                             )
                             as transmission_bytes
                             from aruba_iap_wlan_traffic_stg aiwts
                             join date_dim dd on date(aiwts.poll_time)=dd.date
                             join time_dim td on time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00'))=td.time
                             join gw_iface_dim gid on aiwts.wlan_mac=gid.iface_mac and aiwts.wlan_essid=gid.iface_name
-                            where aiwts.id between %d and %d
+                            where aiwts.id in %s
                         ) x
                         group by 1,2,3
                     ) tmp
                 )
                 on duplicate key update transmission_bytes=transmission_bytes+transmission_bytes_val""",
-                minId, maxId
+                unprocessedAndProcessedIds
             )
         );
 
@@ -202,8 +244,8 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
         // once completed, mark all completed
         jdbcTemplate.execute(
             String.format("""
-                update aruba_iap_wlan_traffic_stg set mark=1 where id between %d and %d""",
-                minId, maxId
+                update aruba_iap_wlan_traffic_stg set mark=1 where id in %s""",
+                unprocessedIds
             )
         );
 

@@ -62,11 +62,16 @@ public class ClientInfoSchedulerJob implements BaseScheduler {
 			
 			order by aidis.poll_time,aidis.id
 			
-			limit 1000
+			limit 10000
 			
 			for update""",
 			new BeanPropertyRowMapper<>(ArubaAiClientInfoEntity.class)
 		);
+
+		if (unprocessed.isEmpty()) {
+			log.info("no aruba ai client info found");
+			return;
+		}
 
 		String listIdUnprocessed = unprocessed
 			.parallelStream()
@@ -92,11 +97,17 @@ public class ClientInfoSchedulerJob implements BaseScheduler {
 						partition by aidis.device_mac,aidis.device_name,aidis.device_ip,aidis.device_wlan_mac
 						order by aidis.poll_time desc,aidis.id desc
 					) as rn
-					from aruba_iap_device_info_stg aidis
-					where mark=1
-					and (aidis.device_mac,aidis.device_name,aidis.device_ip,aidis.device_wlan_mac)
+					from (
+						select
+						*
+						from aruba_iap_device_info_stg aidi
+						where mark=1
+						order by id desc
+						limit 2000 -- limit to earliest 1000 processed records to look back (~ last 2 hrs)
+						for share
+					) aidis
+					where (aidis.device_mac,aidis.device_name,aidis.device_ip,aidis.device_wlan_mac)
 					in (select * from uptime_list_device_unprocessed)
-					for update
 				) x
 				where rn=1""",
 				listIdUnprocessed
@@ -127,11 +138,17 @@ public class ClientInfoSchedulerJob implements BaseScheduler {
 								aidi.device_name
 							order by aidi.poll_time desc,aidi.id desc
 						) as rn
-						from aruba_iap_device_info_stg aidi
-						where mark=1
-						and (date_format(aidi.poll_time,'%%Y-%%m-%%d %%H:00:00'),aidi.device_mac,aidi.device_name)
+						from (
+							select
+							*
+							from aruba_iap_device_info_stg aidi
+							where mark=1
+							order by id desc
+							limit 2000 -- limit to earliest 1000 processed records to look back (~ last 2 hrs)
+							for share
+						) aidi
+						where (date_format(aidi.poll_time,'%%Y-%%m-%%d %%H:00:00'),aidi.device_mac,aidi.device_name)
 						in (select * from uptime_list_device_unprocessed)
-						for update
 					) x
 					where rn=1;""",
 					listIdUnprocessed
@@ -168,6 +185,16 @@ public class ClientInfoSchedulerJob implements BaseScheduler {
 			listIdUnprocessedAndProcessedTraffic.append(ai.getId());
 		}
 		listIdUnprocessedAndProcessedTraffic.append(')');
+
+		if (listIdUnprocessedAndProcessedUptime.length() == 2) {
+			listIdUnprocessedAndProcessedUptime.deleteCharAt(listIdUnprocessedAndProcessedUptime.length() - 1);
+			listIdUnprocessedAndProcessedUptime.append("-1)");
+		}
+
+		if (listIdUnprocessedAndProcessedTraffic.length() == 2) {
+			listIdUnprocessedAndProcessedTraffic.deleteCharAt(listIdUnprocessedAndProcessedTraffic.length() - 1);
+			listIdUnprocessedAndProcessedTraffic.append("-1)");
+		}
 
 		log.info("listIdUnprocessed: {}", listIdUnprocessed);
 		log.info("listIdUnprocessedAndProcessedUptime: {}", listIdUnprocessedAndProcessedUptime);
@@ -258,7 +285,7 @@ public class ClientInfoSchedulerJob implements BaseScheduler {
 							timestampdiff(
 								second,
 								lag(aidi.poll_time - interval aidi.device_uptime_seconds second,1,'1970-01-01 00:00:00')
-								over(partition by device_mac,device_name,device_ip,device_wlan_mac order by poll_time asc),
+								over(partition by device_mac,device_name,device_ip,device_wlan_mac order by poll_time,id),
 								aidi.poll_time - interval aidi.device_uptime_seconds second
 							) as diff_uptime,
 							aidi.mark
@@ -297,7 +324,7 @@ public class ClientInfoSchedulerJob implements BaseScheduler {
 						timestampdiff(
 							second,
 							lag(aidi.poll_time - interval aidi.device_uptime_seconds second,1,'1970-01-01 00:00:00')
-							over(partition by device_mac,device_name,device_ip,device_wlan_mac order by poll_time asc),
+							over(partition by device_mac,device_name,device_ip,device_wlan_mac order by poll_time,id),
 							aidi.poll_time - interval aidi.device_uptime_seconds second
 						) as diff_uptime,
 						aidi.mark
@@ -343,19 +370,19 @@ public class ClientInfoSchedulerJob implements BaseScheduler {
 						td.time_key,
 						dd1.device_key,
 						aidi.device_rx - if(
-							lag(aidi.device_rx,1,aidi.device_rx) over(partition by dd.date_key,td.time_key,dd1.device_key order by aidi.poll_time)
+							lag(aidi.device_rx,1,aidi.device_rx) over(partition by dd.date_key,td.time_key,dd1.device_key order by aidi.poll_time,aidi.id)
 							>
 							aidi.device_rx,
 							0,
-							lag(aidi.device_rx,1,aidi.device_rx) over(partition by dd.date_key,td.time_key,dd1.device_key order by aidi.poll_time)
+							lag(aidi.device_rx,1,aidi.device_rx) over(partition by dd.date_key,td.time_key,dd1.device_key order by aidi.poll_time,aidi.id)
 						)
 						+
 						aidi.device_tx - if(
-							lag(aidi.device_tx,1,aidi.device_tx) over(partition by dd.date_key,td.time_key,dd1.device_key order by aidi.poll_time)
+							lag(aidi.device_tx,1,aidi.device_tx) over(partition by dd.date_key,td.time_key,dd1.device_key order by aidi.poll_time,aidi.id)
 							>
 							aidi.device_tx,
 							0,
-							lag(aidi.device_tx,1,aidi.device_tx) over(partition by dd.date_key,td.time_key,dd1.device_key order by aidi.poll_time)
+							lag(aidi.device_tx,1,aidi.device_tx) over(partition by dd.date_key,td.time_key,dd1.device_key order by aidi.poll_time,aidi.id)
 						)
 						as transmission_bytes
 						from aruba_iap_device_info_stg aidi
@@ -394,7 +421,7 @@ public class ClientInfoSchedulerJob implements BaseScheduler {
 						timestampdiff(
 							second,
 							lag(aidi.poll_time - interval aidi.device_uptime_seconds second,1,'1970-01-01 00:00:00')
-							over(partition by device_mac,device_name,device_ip,device_wlan_mac order by poll_time asc),
+							over(partition by device_mac,device_name,device_ip,device_wlan_mac order by poll_time,id),
 							aidi.poll_time - interval aidi.device_uptime_seconds second
 						) as diff_uptime,
 						aidi.mark
