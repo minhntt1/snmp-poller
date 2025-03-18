@@ -11,6 +11,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -21,7 +23,7 @@ public class Rfc1213IgateSchedulerJob implements BaseScheduler {
 
     @Override
     @Transactional
-    @Scheduled(fixedRate = 3_600_000) // 1 hour
+    @Scheduled(fixedRate = 600_000) // 10 min
     public void start() {
         log.info("start");
 
@@ -29,31 +31,80 @@ public class Rfc1213IgateSchedulerJob implements BaseScheduler {
         * select in stg table
         * then also use partition by iface descr,iface phys address,
         * */
-        List<Rfc1213IgateIftableTrafficEntity> rfc1213IgateIftableTrafficEntities =
-            jdbcTemplate.query("""            
+        List<Rfc1213IgateIftableTrafficEntity> unprocessedList = jdbcTemplate.query("""            
             select
             rits.id
             from rfc1213_iftable_traffic_stg rits
             where mark=0
             order by rits.poll_time,rits.id
-            limit 100000
+            limit 10000
             for update""",
             new BeanPropertyRowMapper<>(Rfc1213IgateIftableTrafficEntity.class)
         );
 
-        log.info("total records: {}", rfc1213IgateIftableTrafficEntities.size());
+        if (unprocessedList.isEmpty()) {
+            log.info("no rfc1213 igate records found");
+            return;
+        }
 
-        long minId = rfc1213IgateIftableTrafficEntities.stream()
+        String unprocessedIds = unprocessedList.stream()
                 .map(Rfc1213IgateIftableTrafficEntity::getId)
-                .min(Long::compare)
-                .orElse(0L);
+                .map(String::valueOf)
+                .collect(Collectors.joining(",","(",")"));
 
-        long maxId = rfc1213IgateIftableTrafficEntities.stream()
+        List<Rfc1213IgateIftableTrafficEntity> processedList = jdbcTemplate.query(String.format("""
+                with cte as(
+                    select
+                    distinct
+                    date(rits.poll_time),
+                    time_to_sec(date_format(time(rits.poll_time),'%%H:00:00')),
+                    rits.if_phys_address,
+                    rits.if_descr
+                    from rfc1213_iftable_traffic_stg rits
+                    where rits.id in %s
+                )
+                select
+                id
+                from (
+                    select
+                    rits.id,
+                    row_number() over(partition by 
+                        date(rits.poll_time),
+                        time_to_sec(date_format(time(rits.poll_time),'%%H:00:00')),
+                        rits.if_phys_address,
+                        rits.if_descr
+                        order by rits.poll_time desc,rits.id desc
+                    ) as rn
+                    from (
+                        select
+                        *
+                        from rfc1213_iftable_traffic_stg rits
+                        where rits.mark = 1
+                        order by rits.id desc
+                        limit 2000 -- limit to earliest 2000 processed records to look back (~ last 3 hours)
+                        for share
+                    ) rits
+                    where (date(rits.poll_time),
+                        time_to_sec(date_format(time(rits.poll_time),'%%H:00:00')),
+                        rits.if_phys_address,
+                        rits.if_descr)
+                    in (select * from cte)
+                ) x
+                where x.rn=1
+                """,
+                unprocessedIds),
+                new BeanPropertyRowMapper<>(Rfc1213IgateIftableTrafficEntity.class)
+        );
+
+        String processedAndUnprocessedIds =
+                Stream.concat(unprocessedList.stream(), processedList.stream())
                 .map(Rfc1213IgateIftableTrafficEntity::getId)
-                .max(Long::compareTo)
-                .orElse(0L);
+                .map(String::valueOf)
+                .collect(Collectors.joining(",","(",")"));
 
-        log.info("min id: {}, maxId: {}", minId, maxId);
+        log.info("unprocessed ids: {}", unprocessedIds);
+
+        log.info("processedAndUnprocessedIds={}", processedAndUnprocessedIds);
 
         /*
         * determine necessary table dim
@@ -76,11 +127,11 @@ public class Rfc1213IgateSchedulerJob implements BaseScheduler {
                     left join gw_iface_dim gid on rits.if_phys_address=gid.iface_mac
                     and rits.if_descr=gid.iface_phy_name
                     where gid.iface_key is null
-                    and rits.id between %d and %d
+                    and rits.id in %s
                     and rits.if_oper_status=1 -- only allow up iface (up=1,down=2)
                     and rits.if_phys_address is not null and rits.if_phys_address<>0 -- only allow iface has phys address
                 )""",
-                minId,maxId
+                unprocessedIds
             )
         );
 
@@ -93,9 +144,9 @@ public class Rfc1213IgateSchedulerJob implements BaseScheduler {
                     date(rits.poll_time)
                     from rfc1213_iftable_traffic_stg rits
                     left join date_dim dd on date(rits.poll_time)=dd.date
-                    where dd.date_key is null and rits.id between %d and %d
+                    where dd.date_key is null and rits.id in %s
                 );""",
-                minId, maxId
+                unprocessedIds
             )
         );
 
@@ -108,9 +159,9 @@ public class Rfc1213IgateSchedulerJob implements BaseScheduler {
                 time_to_sec(time(rits.poll_time))
                 from rfc1213_iftable_traffic_stg rits
                 left join time_dim td on time_to_sec(time(rits.poll_time))=td.time
-                where td.time_key is null and rits.id between %d and %d
+                where td.time_key is null and rits.id in %s
             )""",
-            minId, maxId)
+            unprocessedIds)
         );
 
         // insert hour into time dim
@@ -121,9 +172,9 @@ public class Rfc1213IgateSchedulerJob implements BaseScheduler {
                     distinct time_to_sec(date_format(time(rits.poll_time),'%%H:00:00'))
                     from rfc1213_iftable_traffic_stg rits
                     left join time_dim td on time_to_sec(date_format(time(rits.poll_time),'%%H:00:00'))=td.time
-                    where td.time_key is null and rits.id between %d and %d
+                    where td.time_key is null and rits.id in %s
                 )""",
-                minId, maxId)
+                unprocessedIds)
         );
 
         log.info("insert into dim table end");
@@ -148,26 +199,26 @@ public class Rfc1213IgateSchedulerJob implements BaseScheduler {
                             gid.iface_key,
                             -- notice: octet = 8 bits = 1 byte
                             rits.if_in_octets - if(
-                                lag(rits.if_in_octets,1,rits.if_in_octets) over(partition by dd.date_key,td.time_key,gid.iface_key order by rits.poll_time)
+                                lag(rits.if_in_octets,1,rits.if_in_octets) over(partition by dd.date_key,td.time_key,gid.iface_key order by rits.poll_time,rits.id)
                                 >
                                 rits.if_in_octets,
                                 0,
-                                lag(rits.if_in_octets,1,rits.if_in_octets) over(partition by dd.date_key,td.time_key,gid.iface_key order by rits.poll_time)
+                                lag(rits.if_in_octets,1,rits.if_in_octets) over(partition by dd.date_key,td.time_key,gid.iface_key order by rits.poll_time,rits.id)
                             )
                             +
                             rits.if_out_octets - if(
-                                lag(rits.if_out_octets,1,rits.if_out_octets) over(partition by dd.date_key,td.time_key,gid.iface_key order by rits.poll_time)
+                                lag(rits.if_out_octets,1,rits.if_out_octets) over(partition by dd.date_key,td.time_key,gid.iface_key order by rits.poll_time,rits.id)
                                 >
                                 rits.if_out_octets,
                                 0,
-                                lag(rits.if_out_octets,1,rits.if_out_octets) over(partition by dd.date_key,td.time_key,gid.iface_key order by rits.poll_time)
+                                lag(rits.if_out_octets,1,rits.if_out_octets) over(partition by dd.date_key,td.time_key,gid.iface_key order by rits.poll_time,rits.id)
                             )
                             as transmission_bytes
                             from rfc1213_iftable_traffic_stg rits
                             join date_dim dd on date(rits.poll_time)=dd.date
                             join time_dim td on time_to_sec(date_format(time(rits.poll_time),'%%H:00:00'))=td.time
                             join gw_iface_dim gid on rits.if_phys_address=gid.iface_mac and rits.if_descr=gid.iface_phy_name
-                            where rits.id between %d and %d
+                            where rits.id in %s
                             and rits.if_oper_status=1 -- only allow up iface (up=1,down=2)
                             and rits.if_phys_address is not null and rits.if_phys_address<>0 -- only allow iface has phys address
                         ) x
@@ -175,7 +226,7 @@ public class Rfc1213IgateSchedulerJob implements BaseScheduler {
                     ) tmp
                 )
                 on duplicate key update transmission_bytes=transmission_bytes+transmission_bytes_val"""
-            , minId, maxId)
+            , processedAndUnprocessedIds)
         );
 
         log.info("update fact table end");
@@ -185,8 +236,8 @@ public class Rfc1213IgateSchedulerJob implements BaseScheduler {
         // once completed, mark all completed
         jdbcTemplate.execute(
             String.format("""
-            update rfc1213_iftable_traffic_stg set mark=1 where id between %d and %d""",
-                minId, maxId
+            update rfc1213_iftable_traffic_stg set mark=1 where id in %s""",
+                unprocessedIds
             )
         );
 

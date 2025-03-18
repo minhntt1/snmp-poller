@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -24,60 +25,77 @@ public class ApInfoJobScheduler implements BaseScheduler {
 
     @Override
     @Transactional
-    @Scheduled(fixedRate = 60_000) // 1 min
+    @Scheduled(fixedRate = 600_000) // 10 min
     public void start() {
         log.info("start");
 
-        List<ArubaAiApInfoEntity> arubaAiApInfoEntities = jdbcTemplate
+        List<ArubaAiApInfoEntity> listUnprocessed = jdbcTemplate
             .query("""
-                -- 1st step, select needed id and lock them
-                with cte1 as (-- select latest one processed row
+                select
+                aiais.id
+                from aruba_iap_ap_info_stg  aiais
+                where aiais.mark=0
+                order by aiais.poll_time,aiais.id
+                limit 10000
+                for update""",
+                new BeanPropertyRowMapper<>(ArubaAiApInfoEntity.class));
+
+        if (listUnprocessed.isEmpty()) {
+            log.info("no aruba ai ap info record found");
+            return;
+        }
+
+        String unprocessedIds =
+                listUnprocessed
+                .stream()
+                .map(ArubaAiApInfoEntity::getId)
+                .map(String::valueOf)
+                .collect(Collectors.joining(",","(",")"));
+
+        List<ArubaAiApInfoEntity> listProcessed = jdbcTemplate
+            .query(String.format("""
+                with cte as (
                     select
-                    id
-                    from aruba_iap_ap_info_stg
-                    where id in (
-                    	select
-                        id
-                        from (
-                    		-- for each ap_mac,ap_name,select its latest processed row data (for stateful processing),
-                    		-- previous approach (select limit 1) does not work because its only selectlatest 1 record, does not care it belong to which pair of mac,name
-                    		select
-                    		aiais.id,
-                    		row_number() over(partition by aiais.ap_mac,aiais.ap_name order by aiais.poll_time desc,aiais.id desc) as rn
-                    		from aruba_iap_ap_info_stg aiais
-                    		where aiais.mark=1
-                    		for update
-                        ) x
-                        where x.rn=1
-                    )
-                ), cte2 as (-- select unprocessed rows, earliest, limit to 200
-                    select
-                    aiais.id
+                    distinct
+                    (date(aiais.poll_time)-interval weekday(aiais.poll_time) day) as date,
+                    aiais.ap_mac,
+                    aiais.ap_name,
+                    aiais.ap_ip
                     from aruba_iap_ap_info_stg  aiais
-                    where aiais.mark=0
-                    order by aiais.poll_time asc,aiais.id asc
-                    limit 200 
-                    for update
+                    where aiais.id in %s
                 )
-                select * from cte1
-                union
-                select * from cte2;""",
-                new BeanPropertyRowMapper<>(ArubaAiApInfoEntity.class)
-            );
+                select
+                id
+                from (
+                    select
+                    aiais.id,
+                    row_number() over(partition by date(aiais.poll_time)-interval weekday(aiais.poll_time) day,aiais.ap_mac,aiais.ap_name,aiais.ap_ip order by aiais.poll_time desc,aiais.id desc) as rn
+                    from (
+                        select
+                        *
+                        from aruba_iap_ap_info_stg
+                        where mark=1
+                        order by id desc
+                        limit 100 -- last 4 hrs
+                        for share
+                    ) aiais
+                    where (date(aiais.poll_time)-interval weekday(aiais.poll_time) day,aiais.ap_mac,aiais.ap_name,aiais.ap_ip)
+                    in (select * from cte)
+                ) x
+                where x.rn=1
+                """,
+                unprocessedIds),
+                new BeanPropertyRowMapper<>(ArubaAiApInfoEntity.class));
 
-        log.info("total records: {}", arubaAiApInfoEntities.size());
-
-        long minId = arubaAiApInfoEntities.stream()
+        String processedAndUnprocessed =
+                Stream.concat(listProcessed.stream(), listUnprocessed.stream())
                 .map(ArubaAiApInfoEntity::getId)
-                .min(Long::compareTo)
-                .orElse(0L);
+                .map(String::valueOf)
+                .collect(Collectors.joining(",","(",")"));
 
-        long maxId = arubaAiApInfoEntities.stream()
-                .map(ArubaAiApInfoEntity::getId)
-                .max(Long::compareTo)
-                .orElse(0L);
+        log.info("unprocessed ids: {}", unprocessedIds);
 
-        log.info("min id: {}, max id: {}", minId, maxId);
+        log.info("processedAndUnprocessed: {}", processedAndUnprocessed);
 
         /*
          * ap_dim
@@ -95,9 +113,9 @@ public class ApInfoJobScheduler implements BaseScheduler {
                     select distinct date(aiis.poll_time)
                     from aruba_iap_ap_info_stg aiis
                     left join date_dim dd on date(aiis.poll_time) = dd.date
-                    where dd.date_key is null and aiis.id between %d and %d
+                    where dd.date_key is null and aiis.id in %s
                 )""",
-                minId, maxId
+                unprocessedIds
             )
         );
 
@@ -108,9 +126,9 @@ public class ApInfoJobScheduler implements BaseScheduler {
                     select distinct time_to_sec(time(aiis.poll_time))
                     from aruba_iap_ap_info_stg aiis
                     left join time_dim td on time_to_sec(time(aiis.poll_time)) = td.time
-                    where td.time_key is null and aiis.id between %d and %d
+                    where td.time_key is null and aiis.id in %s
                 )""",
-                minId, maxId
+                unprocessedIds
             )
         );
 
@@ -121,9 +139,9 @@ public class ApInfoJobScheduler implements BaseScheduler {
                     select distinct aiis.ap_ip
                     from aruba_iap_ap_info_stg aiis
                     left join ip_dim id on aiis.ap_ip = id.ipv4
-                    where id.ip_key is null and aiis.id between %d and %d
+                    where id.ip_key is null and aiis.id in %s
                 )""",
-                minId, maxId
+                unprocessedIds
             )
         );
 
@@ -134,9 +152,9 @@ public class ApInfoJobScheduler implements BaseScheduler {
                     select distinct aiis.ap_mac, aiis.ap_name
                     from aruba_iap_ap_info_stg aiis
                     left join ap_dim ad on aiis.ap_mac = ad.ap_mac and aiis.ap_name = ad.ap_name
-                    where ad.ap_key is null and aiis.id between %d and %d
+                    where ad.ap_key is null and aiis.id in %s
                 )""",
-                minId, maxId
+                unprocessedIds
             )
         );
 
@@ -151,9 +169,9 @@ public class ApInfoJobScheduler implements BaseScheduler {
                     date(aiais.poll_time)-interval weekday(aiais.poll_time) day
                     from aruba_iap_ap_info_stg aiais
                     left join date_dim dd on (date(aiais.poll_time)-interval weekday(aiais.poll_time) day) = dd.date
-                    where dd.date_key is null and aiais.id between %d and %d
+                    where dd.date_key is null and aiais.id in %s
                 )""",
-                minId, maxId
+                unprocessedIds
             )
         );
 
@@ -174,17 +192,17 @@ public class ApInfoJobScheduler implements BaseScheduler {
                         dd.date_key,
                         ad.ap_key,
                         id.ip_key,
-                        aiais.ap_uptime_seconds<lag(aiais.ap_uptime_seconds,1,0) over(partition by dd.date_key,ad.ap_key,id.ip_key order by aiais.poll_time) as cnt
+                        aiais.ap_uptime_seconds<lag(aiais.ap_uptime_seconds,1,0) over(partition by dd.date_key,ad.ap_key,id.ip_key order by aiais.poll_time,aiais.id) as cnt
                         from aruba_iap_ap_info_stg aiais
                         join date_dim dd on (date(aiais.poll_time)-interval weekday(aiais.poll_time) day)=dd.date
                         join ap_dim ad on aiais.ap_mac=ad.ap_mac and aiais.ap_name=ad.ap_name
                         join ip_dim id on aiais.ap_ip=id.ipv4
-                        where aiais.id between %d and %d
+                        where aiais.id in %s
                     ) t
                     group by 1,2,3
                 )
                 on duplicate key update count_reboot=count_reboot+values(count_reboot)""",
-                minId, maxId
+                processedAndUnprocessed
             )
         );
 
@@ -195,8 +213,8 @@ public class ApInfoJobScheduler implements BaseScheduler {
         // once completed, mark all completed
         jdbcTemplate.execute(
              String.format("""
-                update aruba_iap_ap_info_stg set mark=1 where id between %d and %d""",
-                minId, maxId
+                update aruba_iap_ap_info_stg set mark=1 where id in %s""",
+                unprocessedIds
              )
         );
 
