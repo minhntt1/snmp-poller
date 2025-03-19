@@ -1,17 +1,19 @@
 package com.home.spring_cpe_stats.poller.rfc1213.igate.out;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Entity
 @Table(name = "rfc1213_iftable_traffic_stg")
 @NoArgsConstructor
 @Getter
 @Setter
+@Builder
+@AllArgsConstructor
 public class Rfc1213IgateIftableTrafficEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Id
@@ -26,4 +28,11 @@ public class Rfc1213IgateIftableTrafficEntity {
     private Long ifOutOctets;
     private Integer ipAdEntAddr;
     private Integer mark;
+
+    public static String constructIdString(Stream<Rfc1213IgateIftableTrafficEntity> stream) {
+        return stream
+                .map(Rfc1213IgateIftableTrafficEntity::getId)
+                .map(String::valueOf)
+                .collect(Collectors.joining(",","(",")"));
+    }
 }

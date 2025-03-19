@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Entity
 @Table(name = "aruba_iap_wlan_traffic_stg")
@@ -23,4 +25,11 @@ public class ArubaAiWlanTrafficEntity {
     private Long wlanRx;
     private Long wlanTx;
     private Integer mark;
+
+    public static String constructIdString(Stream<ArubaAiWlanTrafficEntity> arubaAiWlanTrafficEntityStream) {
+        return arubaAiWlanTrafficEntityStream
+                .map(ArubaAiWlanTrafficEntity::getId)
+                .map(String::valueOf)
+                .collect(Collectors.joining(",","(",")"));
+    }
 }

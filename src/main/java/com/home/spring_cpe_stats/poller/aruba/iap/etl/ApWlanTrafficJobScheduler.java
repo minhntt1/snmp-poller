@@ -4,6 +4,7 @@ import com.home.spring_cpe_stats.poller.aruba.iap.out.ArubaAiWlanTrafficEntity;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -11,7 +12,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -20,92 +20,61 @@ import java.util.stream.Stream;
 @Profile("!local")
 public class ApWlanTrafficJobScheduler implements BaseScheduler {
     private final JdbcTemplate jdbcTemplate;
+    private final ApplicationContext applicationContext;
 
-    @Override
-    @Transactional
-    @Scheduled(fixedRate = 600_000) // 10 min
-    public void start() {
-        log.info("start");
-
-        List<ArubaAiWlanTrafficEntity> unprocessedList = jdbcTemplate
+    public List<ArubaAiWlanTrafficEntity> getListUnprocessed() {
+        return jdbcTemplate
             .query("""
                 select
                 aiwts.id
                 from aruba_iap_wlan_traffic_stg aiwts
                 where aiwts.mark=0
-                order by aiwts.poll_time,aiwts.id
+                order by aiwts.id
                 limit 10000
-                for update
                 """,
                 new BeanPropertyRowMapper<>(ArubaAiWlanTrafficEntity.class)
             );
+    }
 
-        if (unprocessedList.isEmpty()) {
-            log.info("no aruba ai wlan traffic record found");
-            return;
-        }
-
-        String unprocessedIds =
-            unprocessedList.stream()
-            .map(ArubaAiWlanTrafficEntity::getId)
-            .map(String::valueOf)
-            .collect(Collectors.joining(",","(",")"));
-
-        List<ArubaAiWlanTrafficEntity> processedList = jdbcTemplate
+    public List<ArubaAiWlanTrafficEntity> getListProcessed(String unprocessedIds) {
+        return jdbcTemplate
             .query(String.format("""
-                with cte as(
+                    with cte as(
+                        select
+                        distinct
+                        date(aiwts.poll_time),
+                        time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00')),
+                        aiwts.wlan_mac,
+                        aiwts.wlan_essid
+                        from aruba_iap_wlan_traffic_stg aiwts
+                        where aiwts.id in %s
+                    )
                     select
-                    distinct
-                    date(aiwts.poll_time),
-                    time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00')),
-                    aiwts.wlan_mac,
-                    aiwts.wlan_essid
-                    from aruba_iap_wlan_traffic_stg aiwts
-                    where aiwts.id in %s
-                )
-                select
-                id
-                from (
-                    select
-                    aiwts.id,
-                    row_number() over(partition by date(aiwts.poll_time),time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00')),aiwts.wlan_mac,aiwts.wlan_essid 
-                    order by aiwts.poll_time desc,aiwts.id desc) as rn
+                    id
                     from (
                         select
-                        *
-                        from aruba_iap_wlan_traffic_stg aiwts
-                        where mark=1
-                        order by id desc
-                        limit 100 -- limit to 100 because this table is small ~ last 2 hrs
-                        for share
-                    ) aiwts
-                    where (date(aiwts.poll_time),time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00')),aiwts.wlan_mac,aiwts.wlan_essid)
-                    in (select * from cte)
-                ) x
-                where x.rn=1
-                """,
-                unprocessedIds),
-                new BeanPropertyRowMapper<>(ArubaAiWlanTrafficEntity.class)
+                        aiwts.id,
+                        row_number() over(partition by date(aiwts.poll_time),time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00')),aiwts.wlan_mac,aiwts.wlan_essid 
+                        order by aiwts.poll_time desc,aiwts.id desc) as rn
+                        from (
+                            select
+                            *
+                            from aruba_iap_wlan_traffic_stg aiwts
+                            where mark=1
+                            order by id desc
+                            limit 100 -- limit to 100 because this table is small ~ last 2 hrs
+                        ) aiwts
+                        where (date(aiwts.poll_time),time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00')),aiwts.wlan_mac,aiwts.wlan_essid)
+                        in (select * from cte)
+                    ) x
+                    where x.rn=1
+                    """,
+                        unprocessedIds),
+                    new BeanPropertyRowMapper<>(ArubaAiWlanTrafficEntity.class)
             );
+    }
 
-        String unprocessedAndProcessedIds = Stream.concat(processedList.stream(), unprocessedList.stream())
-            .map(ArubaAiWlanTrafficEntity::getId)
-            .map(String::valueOf)
-            .collect(Collectors.joining(",","(",")"));
-
-        log.info("unprocessed ids: {}", unprocessedIds);
-
-        log.info("unprocessedAndProcessedIds: {}", unprocessedAndProcessedIds);
-
-        /*
-        * ap_dim
-        * gw_iface_dim
-        * date_dim
-        * time_dim
-        * */
-
-        log.info("insert into dim table start");
-
+    public void insertIntoApDim(String unprocessedIds) {
         // insert into ap_dim
         jdbcTemplate.execute(
             String.format("""
@@ -122,7 +91,9 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                 unprocessedIds
             )
         );
+    }
 
+    public void insertIntoGwIfaceDim(String unprocessedIds) {
         // insert into gw_iface_dim
         jdbcTemplate.execute(
             String.format("""
@@ -140,7 +111,9 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                 unprocessedIds
             )
         );
+    }
 
+    public void insertIntoDateDim(String unprocessedIds) {
         // insert into date_dim
         jdbcTemplate.execute(
             String.format("""
@@ -155,7 +128,9 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                 unprocessedIds
             )
         );
+    }
 
+    public void insertIntoTimeDim(String unprocessedIds) {
         // insert into time_dim
         jdbcTemplate.execute(
             String.format("""
@@ -167,25 +142,53 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                     left join time_dim td on time_to_sec(time(aiwts.poll_time))=td.time
                     where td.time_key is null and aiwts.id in %s
                 )""",
-                unprocessedIds)
+            unprocessedIds)
         );
+    }
 
+    public void insertIntoTimeDimHourNorm(String unprocessedIds) {
         // insert hour into time dim
         jdbcTemplate.execute(
             String.format("""
-                insert ignore into time_dim(time) (
-                    select
-                    distinct time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00'))
-                    from aruba_iap_wlan_traffic_stg aiwts
-                    left join time_dim td on time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00'))=td.time
-                    where td.time_key is null and aiwts.id in %s
-                )""",
+            insert ignore into time_dim(time) (
+                select
+                distinct time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00'))
+                from aruba_iap_wlan_traffic_stg aiwts
+                left join time_dim td on time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00'))=td.time
+                where td.time_key is null and aiwts.id in %s
+            )""",
             unprocessedIds)
         );
+    }
 
-        log.info("insert into dim table completed");
+    @Transactional
+    public void summarizeData(String unprocessedIds,
+                              String processedIds,
+                              String unprocessedAndProcessedIds) {
+        log.info("start summarizing data");
 
-        log.info("update fact table start");
+        jdbcTemplate.execute(
+            String.format("""
+                select
+                aiwts.id
+                from aruba_iap_wlan_traffic_stg aiwts
+                where aiwts.mark=0
+                and aiwts.id in %s
+                for update""",
+                unprocessedIds
+            )
+        );
+
+        jdbcTemplate.execute(
+            String.format("""
+                select
+                aiwts.id
+                from aruba_iap_wlan_traffic_stg aiwts
+                where aiwts.mark=1
+                and aiwts.id in %s
+                for share
+            """, processedIds)
+        );
 
         // insert into fact table
         jdbcTemplate.execute(
@@ -224,9 +227,24 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                             )
                             as transmission_bytes
                             from aruba_iap_wlan_traffic_stg aiwts
-                            join date_dim dd on date(aiwts.poll_time)=dd.date
-                            join time_dim td on time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00'))=td.time
-                            join gw_iface_dim gid on aiwts.wlan_mac=gid.iface_mac and aiwts.wlan_essid=gid.iface_name
+                            join date_dim dd on dd.date_key=(
+                                select date_key from
+                                date_dim
+                                where date(aiwts.poll_time)=date
+                                order by date_key desc limit 1
+                            ) 
+                            join time_dim td on td.time_key=(
+                                select time_key from
+                                time_dim
+                                where time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00'))=time
+                                order by time_key desc limit 1
+                            ) 
+                            join gw_iface_dim gid on gid.iface_key=(
+                                select iface_key from
+                                gw_iface_dim
+                                where aiwts.wlan_mac=iface_mac and aiwts.wlan_essid=iface_name
+                                order by iface_key desc limit 1
+                            ) 
                             where aiwts.id in %s
                         ) x
                         group by 1,2,3
@@ -236,8 +254,6 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
                 unprocessedAndProcessedIds
             )
         );
-
-        log.info("update fact table completed");
 
         log.info("mark records start");
 
@@ -250,6 +266,44 @@ public class ApWlanTrafficJobScheduler implements BaseScheduler {
         );
 
         log.info("mark records completed");
+
+        log.info("end summarizing data");
+    }
+
+    @Override
+    @Scheduled(fixedRate = 600_000) // 10 min
+    public void start() {
+        log.info("start");
+
+        List<ArubaAiWlanTrafficEntity> listUnprocessed = this.getListUnprocessed();
+
+        if (listUnprocessed.isEmpty()) {
+            log.info("listUnprocessed is empty");
+            return;
+        }
+
+        String unprocessedIds = ArubaAiWlanTrafficEntity.constructIdString(listUnprocessed.parallelStream());
+
+        List<ArubaAiWlanTrafficEntity> listProcessed = this.getListProcessed(unprocessedIds);
+
+        if (listProcessed.isEmpty()) {
+            listProcessed.add(ArubaAiWlanTrafficEntity.builder().id(-1L).build());
+        }
+
+        String processedIds = ArubaAiWlanTrafficEntity.constructIdString(listProcessed.parallelStream());
+        String unprocessedAndProcessedIds = ArubaAiWlanTrafficEntity.constructIdString(
+                Stream.concat(listUnprocessed.parallelStream(), listProcessed.parallelStream())
+        );
+
+        this.insertIntoApDim(unprocessedIds);
+        this.insertIntoGwIfaceDim(unprocessedIds);
+        this.insertIntoDateDim(unprocessedIds);
+        this.insertIntoTimeDim(unprocessedIds);
+        this.insertIntoTimeDimHourNorm(unprocessedIds);
+
+        ApWlanTrafficJobScheduler ctx = applicationContext.getBean(ApWlanTrafficJobScheduler.class);
+
+        ctx.summarizeData(unprocessedIds, processedIds, unprocessedAndProcessedIds);
 
         log.info("end");
     }
