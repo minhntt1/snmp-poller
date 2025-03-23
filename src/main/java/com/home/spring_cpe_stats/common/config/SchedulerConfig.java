@@ -1,4 +1,4 @@
-package com.home.spring_cpe_stats.config;
+package com.home.spring_cpe_stats.common.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
