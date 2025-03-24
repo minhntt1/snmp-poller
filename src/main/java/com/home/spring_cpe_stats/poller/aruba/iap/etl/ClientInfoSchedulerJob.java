@@ -3,7 +3,6 @@ package com.home.spring_cpe_stats.poller.aruba.iap.etl;
 import com.home.spring_cpe_stats.common.model.ListSqlQuery;
 import com.home.spring_cpe_stats.poller.aruba.iap.out.ArubaAiClientInfoEntity;
 import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
@@ -14,7 +13,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service

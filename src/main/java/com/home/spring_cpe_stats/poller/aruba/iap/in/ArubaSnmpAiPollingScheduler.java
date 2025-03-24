@@ -1,7 +1,6 @@
 package com.home.spring_cpe_stats.poller.aruba.iap.in;
 
 import com.home.spring_cpe_stats.poller.aruba.iap.out.*;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.snmp4j.Snmp;

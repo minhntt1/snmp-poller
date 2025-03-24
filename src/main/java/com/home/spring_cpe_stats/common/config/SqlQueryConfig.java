@@ -1,7 +1,6 @@
 package com.home.spring_cpe_stats.common.config;
 
 import com.home.spring_cpe_stats.common.model.ListSqlQuery;
-import jakarta.xml.bind.JAXBContext;
 import lombok.SneakyThrows;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

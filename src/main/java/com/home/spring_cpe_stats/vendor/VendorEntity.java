@@ -1,12 +1,10 @@
 package com.home.spring_cpe_stats.vendor;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.Objects;
 import java.util.Optional;
 
 @Table(name = "vendor_dim")
