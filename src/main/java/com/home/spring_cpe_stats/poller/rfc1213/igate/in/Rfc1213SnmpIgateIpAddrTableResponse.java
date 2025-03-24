@@ -2,7 +2,6 @@ package com.home.spring_cpe_stats.poller.rfc1213.igate.in;
 
 import com.home.spring_cpe_stats.poller.util.VariableBindingUtil;
 import lombok.Getter;
-import lombok.Setter;
 import org.snmp4j.smi.OID;
 import org.snmp4j.smi.VariableBinding;
 import org.snmp4j.util.TableEvent;

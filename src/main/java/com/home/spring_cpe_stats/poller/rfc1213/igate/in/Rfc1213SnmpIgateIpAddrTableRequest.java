@@ -5,7 +5,6 @@ import org.snmp4j.util.TableEvent;
 import org.snmp4j.util.TableUtils;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class Rfc1213SnmpIgateIpAddrTableRequest extends Rfc1213SnmpIgateRequest<Rfc1213SnmpIgateIpAddrTableResponse> {
     private static final String ipAdEntAddr = "1.3.6.1.2.1.4.20.1.1.";

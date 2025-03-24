@@ -3,7 +3,6 @@ package com.home.spring_cpe_stats.poller.aruba.iap.etl;
 import com.home.spring_cpe_stats.common.model.ListSqlQuery;
 import com.home.spring_cpe_stats.poller.aruba.iap.out.ArubaAiWlanTrafficEntity;
 import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
