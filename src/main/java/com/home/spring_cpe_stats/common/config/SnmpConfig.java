@@ -1,4 +1,4 @@
-package com.home.spring_cpe_stats.config;
+package com.home.spring_cpe_stats.common.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.snmp4j.Snmp;
