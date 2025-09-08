@@ -1,0 +1,5 @@
+scrape_configs:
+  - job_name: 'spring-batch-monitor'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['192.168.100.240:8080']
