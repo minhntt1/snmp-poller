@@ -1,0 +1,23 @@
+services:
+  mysql1:
+    image: mysql:8.4.6 # Use a specific MySQL version
+    environment:
+      MYSQL_ROOT_PASSWORD: abc123
+    ports:
+      - "3307:3306" # Map host port 3306 to container port 3306
+    volumes:
+      - ./:/docker-entrypoint-initdb.d
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana1:
+    image: grafana/grafana-enterprise:latest
+    ports:
+      - "3000:3000"
