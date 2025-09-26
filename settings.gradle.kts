@@ -1,1 +1,1 @@
-rootProject.name = "spring-cpe-statistics"
+rootProject.name = "network-statistic"
