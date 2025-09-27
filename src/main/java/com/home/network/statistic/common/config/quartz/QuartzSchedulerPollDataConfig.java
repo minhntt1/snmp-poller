@@ -32,7 +32,7 @@ public class QuartzSchedulerPollDataConfig {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
-    @Autowired
+    @Autowired(required = false)
     @Qualifier("quartzJobExecutors")
     private Executor quartzJobExecutors;
 

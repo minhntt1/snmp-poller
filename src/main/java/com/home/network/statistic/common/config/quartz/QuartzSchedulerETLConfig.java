@@ -31,7 +31,7 @@ public class QuartzSchedulerETLConfig {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
-    @Autowired
+    @Autowired(required = false)
     @Qualifier("quartzJobExecutors")
     private Executor quartzJobExecutors;
 
