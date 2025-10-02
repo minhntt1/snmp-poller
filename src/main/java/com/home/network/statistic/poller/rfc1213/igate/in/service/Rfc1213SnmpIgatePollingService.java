@@ -23,7 +23,6 @@ public class Rfc1213SnmpIgatePollingService {
         new Rfc1213SnmpIgateTarget("udp:192.168.100.1/161")
     );
 
-//    @Scheduled(fixedRate = 300_000) // 5 mins polling for iface traffic
     public void pollIfTraffic() {
 
         for (Rfc1213SnmpIgateTarget rfc1213SnmpIgateTarget : rfc1213SnmpIgateTargets) {

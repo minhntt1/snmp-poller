@@ -46,13 +46,12 @@ public class ArubaSnmpAiWlanResponse extends ArubaSnmpAiResponse {
         log.info("parsed response: {}", this);
 
         return ArubaAiWlanTrafficEntity.builder()
-                .pollTime(this.toUTC7DateTime())
+                .pollTime(this.toCurrentLdt())
                 .wlanApMac(this.aiWlanAPMACAddress)
                 .wlanEssid(this.aiWlanESSID)
                 .wlanMac(this.aiWlanMACAddress)
                 .wlanRx(this.aiWlanRxDataBytes)
                 .wlanTx(this.aiWlanTxDataBytes)
-                .mark(0)
                 .build();
     }
 }

@@ -58,9 +58,9 @@ public class QuartzSchedulerPollDataConfig {
             schedulerFactoryBean.setAutoStartup(true); // enable auto start of scheduler after bean initalization
         }
 
-        schedulerFactoryBean.setDataSource(dataSource);         // use data source participate in transaction
-        // schedulerFactoryBean.setNonTransactionalDataSource(); // this one in contrast, one another DS for non transactional operation, for performance gain (if not set, it will same as datasource)
-        schedulerFactoryBean.setTransactionManager(transactionManager); // set transaction manager to specify spring conn transaction for tx datasource (used for working with job store)
+//        schedulerFactoryBean.setDataSource(dataSource);         // use data source participate in container's transaction
+        schedulerFactoryBean.setNonTransactionalDataSource(dataSource); // data source with quartz managed's transaction
+//        schedulerFactoryBean.setTransactionManager(transactionManager); // set transaction manager to specify spring conn transaction for tx datasource (used for working with job store)
         schedulerFactoryBean.setWaitForJobsToCompleteOnShutdown(true);
         schedulerFactoryBean.setOverwriteExistingJobs(false);    // overwrite persisted job data -> if want to use persisted job data, set to false
 

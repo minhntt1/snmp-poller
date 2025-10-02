@@ -20,4 +20,6 @@ module com.home.network.statistic {
     requires spring.tx;
     requires spring.web;
     requires org.slf4j;
+    requires com.fasterxml.jackson.databind;
+    requires com.fasterxml.jackson.datatype.jsr310;
 }

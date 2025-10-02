@@ -14,7 +14,6 @@ import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
-import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.Properties;
 
@@ -47,7 +46,9 @@ public class ExecutorDataSourceConfig {
 
     @Bean("appJdbcTemplate")
     JdbcTemplate jdbcTemplate() {
-        return new JdbcTemplate(appDs());
+        var template = new JdbcTemplate(appDs());
+        template.setFetchSize(10_000);  // send 10000 rows max from mysql to
+        return template;
     }
 
     @Bean("appJpaTx")

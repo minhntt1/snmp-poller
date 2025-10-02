@@ -1,8 +1,10 @@
 package com.home.network.statistic.poller.aruba.iap.etl.service;
 
 import com.home.network.statistic.common.model.ListSqlQuery;
+import com.home.network.statistic.poller.aruba.iap.etl.ApRebootWeeklyCount;
 import com.home.network.statistic.poller.aruba.iap.out.ArubaAiApInfoEntity;
 import lombok.extern.slf4j.Slf4j;
+import org.quartz.JobExecutionContext;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
@@ -11,8 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.stream.Stream;
+import java.util.HashMap;
 
 @Service
 @Slf4j
@@ -30,111 +31,110 @@ public class ApInfoService implements BaseService {
         this.applicationContext = applicationContext;
     }
 
-    private void insertIntoDateDim(String unprocessedIds) {
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("insertIntoDateDim"), unprocessedIds)
-        );
+    private void insertIntoWeekDateDim() {
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoWeekDateDim"));
     }
 
-    private void insertIntoTimeDim(String unprocessedIds) {
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("insertIntoTimeDim"), unprocessedIds)
-        );
+    private void insertIntoDateDim() {
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoDateDim"));
     }
 
-    private void insertIntoIpDim(String unprocessedIds) {
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("insertIntoIpDim"), unprocessedIds)
-        );
+    private void insertIntoTimeDim() {
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoTimeDim"));
     }
 
-    private void insertIntoApDim(String unprocessedIds) {
+    private void insertIntoIpDim() {
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoIpDim"));
+    }
+
+    private void insertIntoApDim() {
         // insert into ap_dim
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("insertIntoApDim"), unprocessedIds)
-        );
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoApDim"));
     }
 
-    private List<ArubaAiApInfoEntity> getListUnprocessed() {
-        return jdbcTemplate
-            .query(listSqlQuery.getQueryValue("getListUnprocessed"),
-                new BeanPropertyRowMapper<>(ArubaAiApInfoEntity.class)
-            );
-    }
+    private void cleanUpBatch() {
+        // copy all staging data to archive
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("copyStgToArchive"));
 
-    private List<ArubaAiApInfoEntity> getListProcessed(String unprocessedIds) {
-        return jdbcTemplate
-            .query(String.format(listSqlQuery.getQueryValue("getListProcessed"), unprocessedIds),
-            new BeanPropertyRowMapper<>(ArubaAiApInfoEntity.class)
-        );
+        // drop current staging (batch processing table)
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("dropCurrentStg"));
+
+        // create new batch process table
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("createNewStg"));
+
+        // flip new batch process table with ingest table for further processing
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("moveStgToIngest"));
     }
 
     @Transactional(value = "appTx")
-    void summarizeData(String unprocessedIds, String processedIds, String processedAndUnprocessed) {
+    void summarizeData(JobExecutionContext context) {
         log.info("start summarizing data");
 
-        // not allowing other transactions processing these rows
-        // if not query for update, others multi transactions can insert into ap_reboot_cnt_per_week_fact -> wrong result
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("getListUnprocessedForUpdate"), unprocessedIds)
-        );
+        // current job map
+        var map = context.getJobDetail().getJobDataMap();
 
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("getListProcessedForShare"), processedIds)
-        );
+        // copy current job map to get which ones not exist in this iteration
+        var copyOfMap = new HashMap<>(map);
 
-        // insert/update into fact table: ap_reboot_cnt_per_week_fact
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("updateFactTable"), processedAndUnprocessed)
-        );
+        // map reboot cnt
+        var mapRebootCnt = new HashMap<ApRebootWeeklyCount, ApRebootWeeklyCount>();
 
-        log.info("mark records start");
+        // stream is guaranteed to return data ordered
+        try (var stream = jdbcTemplate.queryForStream(listSqlQuery.getQueryValue("getAllStaging"), new BeanPropertyRowMapper<>(ArubaAiApInfoEntity.class));) {
+            for (var it = stream.iterator(); it.hasNext();) {
+                // this one map to ap mac, ap name
+                var currApState = it.next();
+                var apStateKey = currApState.obtainJobApStateKey();
 
-        // once completed, mark all completed
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("markComplete"), unprocessedIds)
-        );
+                // get prev state, latest by job data map
+                // use entity arubaapinforentity for state
+                var prevApState = ArubaAiApInfoEntity.from(map.getString(apStateKey));
 
-        log.info("mark records completed");
+                // the purpose is to count reboot, in other words, count all that have prev uptime > curr uptime
+                // if prev state is null, then count = 0
+                // reboot count sum count by week, ap key, ip key - on application, then embed the result values to sql query
+                if (prevApState != null) {
+                    var kv = new ApRebootWeeklyCount(currApState);
+                    mapRebootCnt.computeIfAbsent(kv, k -> kv).adjustRebootCnt(prevApState, currApState);
+                }
+
+                // update latest state to original map (must convert to json string)
+                map.put(apStateKey, currApState.toJson());
+
+                // remove the exist key in copyOfMap
+                copyOfMap.remove(apStateKey);
+            }
+        }
+
+        // remove all from map keys in copyOfMap
+        for (var k : copyOfMap.keySet()) {
+            map.remove(k);
+        }
+
+        // obtain ap reboot cnt update query
+        String queryUpdateRebootCnt = ApRebootWeeklyCount.obtainSqlValues(mapRebootCnt);
+
+        // update to fact table
+        if (!queryUpdateRebootCnt.isBlank())
+            jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTable").formatted(queryUpdateRebootCnt));
 
         log.info("end summarizing data");
     }
 
     @Override
-//    @Scheduled(fixedRate = 600_000) // 10 min
-    public void start() {
-        log.info("start");
+    public void start(JobExecutionContext context) {
+        // ap info service
+        // first normalize all queries in staging to dimension
+        insertIntoDateDim();
+        insertIntoWeekDateDim();
+        insertIntoTimeDim();
+        insertIntoIpDim();
+        insertIntoApDim();
 
-        List<ArubaAiApInfoEntity> listUnprocessed = getListUnprocessed();
+        // summarize inside a transaction
+        applicationContext.getBean(this.getClass()).summarizeData(context);
 
-        if (listUnprocessed.isEmpty()) {
-            log.info("no records found");
-            return;
-        }
-
-        String unprocessedIds = ArubaAiApInfoEntity.constructIdString(listUnprocessed.stream());
-
-        List<ArubaAiApInfoEntity> listProcessed = this.getListProcessed(unprocessedIds);
-
-        if (listProcessed.isEmpty()) {
-            listProcessed.add(ArubaAiApInfoEntity.builder().id(-1L).build());
-        }
-
-        String processedIds = ArubaAiApInfoEntity.constructIdString(listProcessed.parallelStream());
-
-        String unprocessedAndProcessedIds = ArubaAiApInfoEntity.constructIdString(
-                Stream.concat(listProcessed.parallelStream(), listUnprocessed.parallelStream())
-        );
-
-        this.insertIntoDateDim(unprocessedIds);
-        this.insertIntoTimeDim(unprocessedIds);
-        this.insertIntoIpDim(unprocessedIds);
-        this.insertIntoApDim(unprocessedIds);
-
-        ApInfoService ctx = this.applicationContext.getBean(this.getClass());
-
-        ctx.summarizeData(unprocessedIds, processedIds, unprocessedAndProcessedIds);
-
-        log.info("end");
+        // after summarizing done, delete old table, swap ingest table and batch table to next process
+        cleanUpBatch();
     }
 }

@@ -1,8 +1,10 @@
 package com.home.network.statistic.poller.rfc1213.igate.etl.service;
 
 import com.home.network.statistic.common.model.ListSqlQuery;
+import com.home.network.statistic.poller.rfc1213.igate.etl.Rfc1213IgateTrafficHourlyCount;
 import com.home.network.statistic.poller.rfc1213.igate.out.Rfc1213IgateIftableTrafficEntity;
 import lombok.extern.slf4j.Slf4j;
+import org.quartz.JobExecutionContext;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
@@ -11,7 +13,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 @Service
@@ -30,123 +34,101 @@ public class Rfc1213IgateService implements BaseService {
         this.listSqlQuery = listSqlQuery;
     }
 
-    public List<Rfc1213IgateIftableTrafficEntity> getUnprocessedList() {
-        return jdbcTemplate.query(listSqlQuery.getQueryValue("getUnprocessedList"),
-            new BeanPropertyRowMapper<>(Rfc1213IgateIftableTrafficEntity.class)
-        );
-    }
-
-    public List<Rfc1213IgateIftableTrafficEntity> getProcessedList(String unprocessedIds) {
-        return jdbcTemplate.query(
-            String.format(listSqlQuery.getQueryValue("getProcessedList"),
-                unprocessedIds),
-                new BeanPropertyRowMapper<>(Rfc1213IgateIftableTrafficEntity.class
-            )
-        );
-    }
-
-    public void insertIntoGwIfaceDim(String unprocessedIds) {
+    public void insertIntoGwIfaceDim() {
         // insert into gw_iface_dim
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("insertIntoGwIfaceDim"),
-                unprocessedIds
-            )
-        );
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoGwIfaceDim"));
     }
 
-    public void insertIntoDateDim(String unprocessedIds) {
+    public void insertIntoDateDim() {
         // insert into date_dim
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("insertIntoDateDim"),
-                unprocessedIds
-            )
-        );
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoDateDim"));
     }
 
-    public void insertIntoTimeDim(String unprocessedIds) {
+    public void insertIntoTimeDim() {
         // insert into time_dim
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("insertIntoTimeDim"),
-                unprocessedIds
-            )
-        );
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoTimeDim"));
     }
 
-    public void insertIntoTimeDimHourNorm(String unprocessedIds) {
+    public void insertIntoTimeDimHourNorm() {
         // insert into time_dim
         // insert hour into time dim
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("insertIntoTimeDimHourNorm"),
-            unprocessedIds)
-        );
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoTimeDimHourNorm"));
     }
 
     @Transactional(value = "appTx")
-    public void summarizeData(String unprocessedIds,
-                              String processedIds,
-                              String processedAndUnprocessedIds) {
+    public void summarizeData(JobExecutionContext context) {
         log.info("start summarizing data");
 
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("getUnprocessedListForUpdate"), unprocessedIds)
-        );
+        // get current map of state
+        var stateMap = context.getJobDetail().getJobDataMap();
 
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("getProcessedListForShare"), processedIds)
-        );
+        // copy of state to maintain keys tobe removed
+        var copyState = new HashMap<>(stateMap);
 
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("updateFactTable")
-            , processedAndUnprocessedIds)
-        );
+        // storing count state
+        var mapCountState = new HashMap<Rfc1213IgateTrafficHourlyCount, Rfc1213IgateTrafficHourlyCount>();
 
-        log.info("mark records start");
+        try (var stream = jdbcTemplate.queryForStream(listSqlQuery.getQueryValue("getAllStaging"), new BeanPropertyRowMapper<>(Rfc1213IgateIftableTrafficEntity.class))) {
+            for (var it = stream.iterator(); it.hasNext();) {
+                var currState = it.next();
 
-        // once completed, mark all completed
-        jdbcTemplate.execute(
-            String.format(listSqlQuery.getQueryValue("markComplete"),
-                unprocessedIds
-            )
-        );
+                // whether batch processing current entry
+                if (!currState.checkUsableEntry())
+                    continue;
 
-        log.info("mark records completed");
+                var currStateKey = currState.obtainJobStateKey();
+                var oldState = Rfc1213IgateIftableTrafficEntity.from(stateMap.getString(currStateKey));
+
+                if (oldState != null) {
+                    var count = new Rfc1213IgateTrafficHourlyCount(currState);
+                    mapCountState.computeIfAbsent(count, kk -> count).adjustTraffic(oldState, currState);
+                }
+
+                stateMap.put(currStateKey, currState.toJson());
+                copyState.remove(currStateKey);
+            }
+        }
+
+        for (var key : copyState.keySet())
+            stateMap.remove(key);
+
+        var queryUpdateDb = Rfc1213IgateTrafficHourlyCount.obtainFirstSqlQuery(mapCountState);
+
+        if (!queryUpdateDb.isBlank())
+            jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTable").formatted(queryUpdateDb));
 
         log.info("end summarizing data");
     }
 
+    private void cleanUpBatch() {
+        // copy all staging data to archive
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("copyStgToArchive"));
+
+        // drop current staging (batch processing table)
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("dropCurrentStg"));
+
+        // create new batch process table
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("createNewStg"));
+
+        // flip new batch process table with ingest table for further processing
+        jdbcTemplate.execute(listSqlQuery.getQueryValue("moveStgToIngest"));
+    }
+
     @Override
-//    @Scheduled(fixedRate = 600_000) // 10 min
-    public void start() {
+    public void start(JobExecutionContext context) {
         log.info("start");
 
-        List<Rfc1213IgateIftableTrafficEntity> unprocessedList = this.getUnprocessedList();
+        // normalize
+        insertIntoGwIfaceDim();
+        insertIntoDateDim();
+        insertIntoTimeDim();
+        insertIntoTimeDimHourNorm();
 
-        if (unprocessedList.isEmpty()) {
-            log.info("unprocessed list is empty");
-            return;
-        }
+        // summarize
+        applicationContext.getBean(Rfc1213IgateService.class).summarizeData(context);
 
-        String unprocessedIds = Rfc1213IgateIftableTrafficEntity.constructIdString(unprocessedList.parallelStream());
-
-        List<Rfc1213IgateIftableTrafficEntity> processedList = this.getProcessedList(unprocessedIds);
-
-        if (processedList.isEmpty()) {
-            processedList.add(Rfc1213IgateIftableTrafficEntity.builder().id(-1L).build());
-        }
-
-        String processedIds = Rfc1213IgateIftableTrafficEntity.constructIdString(processedList.parallelStream());
-        String processedAndUnprocessedIds = Rfc1213IgateIftableTrafficEntity.constructIdString(
-                Stream.concat(unprocessedList.parallelStream(), processedList.parallelStream())
-        );
-
-        this.insertIntoGwIfaceDim(unprocessedIds);
-        this.insertIntoDateDim(unprocessedIds);
-        this.insertIntoTimeDim(unprocessedIds);
-        this.insertIntoTimeDimHourNorm(unprocessedIds);
-
-        Rfc1213IgateService ctx = applicationContext.getBean(Rfc1213IgateService.class);
-
-        ctx.summarizeData(unprocessedIds, processedIds, processedAndUnprocessedIds);
+        // clean up batch
+        cleanUpBatch();
 
         log.info("end");
     }

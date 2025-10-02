@@ -57,8 +57,9 @@ public class QuartzSchedulerETLConfig {
             schedulerFactoryBean.setAutoStartup(true); // enable auto start of scheduler after bean initalization
         }
 
-        schedulerFactoryBean.setDataSource(dataSource);         // use data source participate in transaction
-        schedulerFactoryBean.setTransactionManager(transactionManager); // set transaction manager to specify spring conn transaction for tx datasource (used for working with job store)
+        schedulerFactoryBean.setNonTransactionalDataSource(dataSource); // data source with quartz managed's transaction
+//        schedulerFactoryBean.setDataSource(dataSource);         // use data source participate in transaction
+//        schedulerFactoryBean.setTransactionManager(transactionManager); // set transaction manager to specify spring conn transaction for tx datasource (used for working with job store)
         schedulerFactoryBean.setWaitForJobsToCompleteOnShutdown(true);
         schedulerFactoryBean.setOverwriteExistingJobs(false);    // overwrite persisted job data -> if want to use persisted job data, set to false
 

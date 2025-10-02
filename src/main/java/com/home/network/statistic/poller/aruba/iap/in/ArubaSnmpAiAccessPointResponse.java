@@ -48,13 +48,12 @@ public class ArubaSnmpAiAccessPointResponse extends ArubaSnmpAiResponse {
         log.info("parsed response: {}", this);
 
         return ArubaAiApInfoEntity.builder()
-                .pollTime(this.toUTC7DateTime())
+                .pollTime(this.toCurrentLdt())
                 .apMac(this.aiAPMACAddress)
                 .apName(this.aiAPName)
                 .apIp(this.aiAPIPAddress)
                 .apModel(this.aiAPModelName)
                 .apUptimeSeconds(this.toUptimeSeconds())
-                .mark(0)
                 .build();
     }
 }

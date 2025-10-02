@@ -63,7 +63,7 @@ public class Rfc1213SnmpIgateIfTableResponse extends Rfc1213SnmpIgateResponse {
             List<Rfc1213SnmpIgateIpAddrTableResponse> rfc1213SnmpIgateIpAddrTableResponses
     ) {
         Rfc1213IgateIftableTrafficEntity rfc1213IgateIftableTrafficEntity = new Rfc1213IgateIftableTrafficEntity();
-        rfc1213IgateIftableTrafficEntity.setPollTime(this.toUTC7DateTime());
+        rfc1213IgateIftableTrafficEntity.setPollTime(this.toCurrentLdt());
         rfc1213IgateIftableTrafficEntity.setIfIndex(this.ifIndex);
         rfc1213IgateIftableTrafficEntity.setIfDescr(this.ifDescr);
         rfc1213IgateIftableTrafficEntity.setIfPhysAddress(this.ifPhysAddress);
@@ -71,7 +71,6 @@ public class Rfc1213SnmpIgateIfTableResponse extends Rfc1213SnmpIgateResponse {
         rfc1213IgateIftableTrafficEntity.setIfOperStatus(this.ifOperStatus.getValue());
         rfc1213IgateIftableTrafficEntity.setIfInOctets(this.ifInOctets);
         rfc1213IgateIftableTrafficEntity.setIfOutOctets(this.ifOutOctets);
-        rfc1213IgateIftableTrafficEntity.setMark(0);
 
         for (Rfc1213SnmpIgateIpAddrTableResponse rfc1213SnmpIgateIpAddrTableResponse : rfc1213SnmpIgateIpAddrTableResponses) {
             if (this.ifIndex.equals(rfc1213SnmpIgateIpAddrTableResponse.getIpAdEntIfIndex())) {
