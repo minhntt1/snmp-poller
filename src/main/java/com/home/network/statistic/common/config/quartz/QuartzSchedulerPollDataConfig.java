@@ -2,7 +2,7 @@ package com.home.network.statistic.common.config.quartz;
 
 
 import lombok.extern.slf4j.Slf4j;
-import org.quartz.*;
+import org.quartz.impl.StdSchedulerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,8 +15,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
 import java.util.Properties;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 
 @Slf4j
 @Configuration
@@ -32,35 +30,31 @@ public class QuartzSchedulerPollDataConfig {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
-    @Autowired(required = false)
-    @Qualifier("quartzJobExecutors")
-    private Executor quartzJobExecutors;
-
     @Value("${config-as-scheduler}")
     private Boolean schedulerMode;
 
     @Bean
     SchedulerFactoryBean quartzSchedulerPollData() {
         SchedulerFactoryBean schedulerFactoryBean = new SchedulerFactoryBean();
+        var quartzProp = new Properties();
 
         schedulerFactoryBean.setConfigLocation(new ClassPathResource("quartz/quartz-polldata.properties"));
 
-        // if scheduler mode only, not accepting tasks
         if (schedulerMode) {
+            // if scheduler mode only, not accepting tasks
             log.info("in scheduler only mode");
-            var prop = new Properties();
-            prop.put("org.quartz.threadPool.class", NoThreadPoolConfig.class.getName());         // NOTE: to not going to accept task
-            schedulerFactoryBean.setQuartzProperties(prop);
+
+            quartzProp.put(StdSchedulerFactory.PROP_THREAD_POOL_CLASS, NoQuartzThreadPool.class.getName());         // NOTE: to not going to accept task
             schedulerFactoryBean.setAutoStartup(false); // not start scheduler automatically in scheduler only mode
         } else {
             log.info("not in scheduler only mode");
-            schedulerFactoryBean.setTaskExecutor(quartzJobExecutors);  // use Spring task executor, same as org.quartz.threadPool.class
+
+            quartzProp.put(StdSchedulerFactory.PROP_THREAD_POOL_CLASS, AppQuartzThreadPool.class.getName());         // custom thread pool for batch acquisition
             schedulerFactoryBean.setAutoStartup(true); // enable auto start of scheduler after bean initalization
         }
 
-//        schedulerFactoryBean.setDataSource(dataSource);         // use data source participate in container's transaction
+        schedulerFactoryBean.setQuartzProperties(quartzProp);   // set quartz custom properties
         schedulerFactoryBean.setNonTransactionalDataSource(dataSource); // data source with quartz managed's transaction
-//        schedulerFactoryBean.setTransactionManager(transactionManager); // set transaction manager to specify spring conn transaction for tx datasource (used for working with job store)
         schedulerFactoryBean.setWaitForJobsToCompleteOnShutdown(true);
         schedulerFactoryBean.setOverwriteExistingJobs(false);    // overwrite persisted job data -> if want to use persisted job data, set to false
 
