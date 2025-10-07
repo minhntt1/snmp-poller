@@ -251,7 +251,7 @@ class ArubaAiWlanTrafficEntityTest {
             String result = entity.obtainJobApStateKey();
 
             // Then
-            assertEquals("apWlanMac_123456789_apWlanName_TestWiFi", result);
+            assertEquals("apWlanMac_987654321_apWlanName_TestWiFi", result);
         }
     }
 
@@ -373,7 +373,7 @@ class ArubaAiWlanTrafficEntityTest {
         @DisplayName("Should handle null wlanApMac in obtainJobApStateKey")
         void shouldHandleNullWlanApMacInObtainJobApStateKey() {
             // Given
-            entity.setWlanApMac(null);
+            entity.setWlanMac(null);
 
             // When
             String result = entity.obtainJobApStateKey();
@@ -392,14 +392,14 @@ class ArubaAiWlanTrafficEntityTest {
             String result = entity.obtainJobApStateKey();
 
             // Then
-            assertEquals("apWlanMac_123456789_apWlanName_null", result);
+            assertEquals("apWlanMac_987654321_apWlanName_null", result);
         }
 
         @Test
         @DisplayName("Should handle both null wlanApMac and wlanEssid in obtainJobApStateKey")
         void shouldHandleBothNullInObtainJobApStateKey() {
             // Given
-            entity.setWlanApMac(null);
+            entity.setWlanMac(null);
             entity.setWlanEssid(null);
 
             // When
@@ -419,7 +419,7 @@ class ArubaAiWlanTrafficEntityTest {
             String result = entity.obtainJobApStateKey();
 
             // Then
-            assertEquals("apWlanMac_123456789_apWlanName_", result);
+            assertEquals("apWlanMac_987654321_apWlanName_", result);
         }
 
         @Test
@@ -432,7 +432,7 @@ class ArubaAiWlanTrafficEntityTest {
             String result = entity.obtainJobApStateKey();
 
             // Then
-            assertEquals("apWlanMac_123456789_apWlanName_Test-WiFi_2.4GHz", result);
+            assertEquals("apWlanMac_987654321_apWlanName_Test-WiFi_2.4GHz", result);
         }
     }
 }

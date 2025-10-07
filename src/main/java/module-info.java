@@ -22,4 +22,5 @@ module com.home.network.statistic {
     requires org.slf4j;
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.datatype.jsr310;
+    requires spring.jcl;
 }

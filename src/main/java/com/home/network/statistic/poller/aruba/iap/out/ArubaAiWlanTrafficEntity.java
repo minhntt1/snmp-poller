@@ -60,8 +60,9 @@ public class ArubaAiWlanTrafficEntity {
         return pollTime.toLocalTime().truncatedTo(ChronoUnit.HOURS).toSecondOfDay();
     }
 
-    public String obtainJobApStateKey() { // ap wlan state reflects mac, name in gw_iface_dim table
-        return "apWlanMac_%d_apWlanName_%s".formatted(this.wlanApMac, this.wlanEssid);
+    public String obtainJobApStateKey() { // ap wlan state reflects wlan mac, name in gw_iface_dim table
+        // uses wlan mac in ap, instead of ap mac itself
+        return "apWlanMac_%d_apWlanName_%s".formatted(this.wlanMac, this.wlanEssid);
     }
 
     @SneakyThrows

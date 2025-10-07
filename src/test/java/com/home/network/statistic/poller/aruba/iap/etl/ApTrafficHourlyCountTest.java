@@ -100,56 +100,18 @@ class ApTrafficHourlyCountTest {
 
     @Test
     void testUpdateTrafficWithValidDiff() {
-        // Arrange
-        LocalDateTime pollTime = LocalDateTime.of(2023, 10, 2, 14, 30);
-        when(mockEntity.obtainPollDate()).thenReturn("2023-10-02");
-        when(mockEntity.obtainPollHour()).thenReturn(50400);
-        when(mockEntity.getWlanMac()).thenReturn(12345L);
-        when(mockEntity.getWlanEssid()).thenReturn("Test-ESSID");
-
         ApTrafficHourlyCount count = new ApTrafficHourlyCount(mockEntity);
 
-        // Mock old entity (lower values)
-        when(mockOldEntity.getWlanTx()).thenReturn(1000L);
-        when(mockOldEntity.getWlanRx()).thenReturn(500L);
-
-        // Mock new entity (higher values)
-        when(mockNewEntity.getWlanTx()).thenReturn(3000L);
-        when(mockNewEntity.getWlanRx()).thenReturn(1500L);
+        // Mock old entity (lower values) and new entity (higher values)
+        when(mockOldEntity.calcDiffTxOldNew(mockNewEntity)).thenReturn(2000L);
+        when(mockOldEntity.calcDiffRxOldNew(mockNewEntity)).thenReturn(1000L);
 
         // Act
         count.updateTraffic(mockOldEntity, mockNewEntity);
 
         // Assert
-        assertEquals(2000L, count.getApWlanTxTotal()); // 3000 - 1000
-        assertEquals(1000L, count.getApWlanRxTotal()); // 1500 - 500
-    }
-
-    @Test
-    void testUpdateTrafficWithRollover() {
-        // Arrange
-        LocalDateTime pollTime = LocalDateTime.of(2023, 10, 2, 14, 30);
-        when(mockEntity.obtainPollDate()).thenReturn("2023-10-02");
-        when(mockEntity.obtainPollHour()).thenReturn(50400);
-        when(mockEntity.getWlanMac()).thenReturn(12345L);
-        when(mockEntity.getWlanEssid()).thenReturn("Test-ESSID");
-
-        ApTrafficHourlyCount count = new ApTrafficHourlyCount(mockEntity);
-
-        // Mock old entity (higher values - indicates rollover)
-        when(mockOldEntity.getWlanTx()).thenReturn(4000L);
-        when(mockOldEntity.getWlanRx()).thenReturn(2000L);
-
-        // Mock new entity (lower values - indicates rollover)
-        when(mockNewEntity.getWlanTx()).thenReturn(500L);
-        when(mockNewEntity.getWlanRx()).thenReturn(100L);
-
-        // Act
-        count.updateTraffic(mockOldEntity, mockNewEntity);
-
-        // Assert
-        assertEquals(500L, count.getApWlanTxTotal()); // Uses new value when old > new
-        assertEquals(100L, count.getApWlanRxTotal()); // Uses new value when old > new
+        assertEquals(2000L, count.getApWlanTxTotal());
+        assertEquals(1000L, count.getApWlanRxTotal());
     }
 
     @Test
