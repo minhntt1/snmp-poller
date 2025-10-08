@@ -6,6 +6,7 @@ import com.home.network.statistic.poller.aruba.iap.etl.ClientUptimeRecord;
 import com.home.network.statistic.poller.aruba.iap.etl.ClientWlanConnectEvent;
 import com.home.network.statistic.poller.aruba.iap.etl.ClientWlanMetricEvent;
 import com.home.network.statistic.poller.aruba.iap.out.ArubaAiClientInfoEntity;
+import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.JobExecutionContext;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -172,6 +173,7 @@ public class ClientInfoService implements BaseService {
 	}
 
     @Override
+	@Timed(value = "aruba.iap.etl.client.info")
     public void start(JobExecutionContext context) {
 		log.info("start");
 

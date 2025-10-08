@@ -2,6 +2,7 @@ package com.home.network.statistic.poller.aruba.iap.in.service;
 
 import com.home.network.statistic.poller.aruba.iap.in.*;
 import com.home.network.statistic.poller.aruba.iap.out.*;
+import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.snmp4j.Snmp;
@@ -22,6 +23,7 @@ public class ArubaSnmpAiPollingService {
     private final ArubaAiWlanTrafficRepository arubaAiWlanTrafficRepository;
     private final ArubaSnmpAiTarget arubaSnmpAiTarget = new ArubaSnmpAiTarget("udp:192.168.100.253/161");
 
+    @Timed(value = "aruba.iap.in.polling.apinfo")
     public void pollApInfo() {
         TableUtils tableUtils = new TableUtils(snmp, arubaSnmpAiTarget.obtainPduFactory());
 
@@ -38,6 +40,7 @@ public class ArubaSnmpAiPollingService {
         log.info("completed persisting ap info");
     }
 
+    @Timed(value = "aruba.iap.in.polling.clientinfo")
     public void pollClientInfo() {
         TableUtils tableUtils = new TableUtils(snmp, arubaSnmpAiTarget.obtainPduFactory());
 
@@ -54,6 +57,7 @@ public class ArubaSnmpAiPollingService {
         log.info("completed persisting client info");
     }
 
+    @Timed(value = "aruba.iap.in.polling.wlantraffic")
     public void pollWlanTraffic() {
         TableUtils tableUtils = new TableUtils(snmp, arubaSnmpAiTarget.obtainPduFactory());
 

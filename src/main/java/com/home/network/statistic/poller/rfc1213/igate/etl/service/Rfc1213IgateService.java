@@ -3,6 +3,7 @@ package com.home.network.statistic.poller.rfc1213.igate.etl.service;
 import com.home.network.statistic.common.model.ListSqlQuery;
 import com.home.network.statistic.poller.rfc1213.igate.etl.Rfc1213IgateTrafficHourlyCount;
 import com.home.network.statistic.poller.rfc1213.igate.out.Rfc1213IgateIftableTrafficEntity;
+import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.JobExecutionContext;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -115,6 +116,7 @@ public class Rfc1213IgateService implements BaseService {
     }
 
     @Override
+    @Timed(value = "rfc1213.igate.etl.iftraffic")
     public void start(JobExecutionContext context) {
         log.info("start");
 

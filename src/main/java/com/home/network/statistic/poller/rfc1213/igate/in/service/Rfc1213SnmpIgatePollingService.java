@@ -3,6 +3,7 @@ package com.home.network.statistic.poller.rfc1213.igate.in.service;
 import com.home.network.statistic.poller.rfc1213.igate.in.*;
 import com.home.network.statistic.poller.rfc1213.igate.out.Rfc1213IgateIftableTrafficEntity;
 import com.home.network.statistic.poller.rfc1213.igate.out.Rfc1213IgateIftableTrafficEntityRepo;
+import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.snmp4j.Snmp;
@@ -23,6 +24,7 @@ public class Rfc1213SnmpIgatePollingService {
         new Rfc1213SnmpIgateTarget("udp:192.168.100.1/161")
     );
 
+    @Timed(value = "rfc1213.igate.in.polling.iftraffic")
     public void pollIfTraffic() {
 
         for (Rfc1213SnmpIgateTarget rfc1213SnmpIgateTarget : rfc1213SnmpIgateTargets) {
