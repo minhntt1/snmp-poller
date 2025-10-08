@@ -15,6 +15,6 @@ public class ApInfoJob implements Job {
     @Override
     public void execute(JobExecutionContext context) throws JobExecutionException {
         // job execution context not used yet
-        baseService.start();
+        baseService.start(context);
     }
 }

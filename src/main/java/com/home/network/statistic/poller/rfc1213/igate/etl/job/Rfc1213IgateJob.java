@@ -14,6 +14,6 @@ public class Rfc1213IgateJob implements Job {
 
     @Override
     public void execute(JobExecutionContext context) throws JobExecutionException {
-        baseService.start();
+        baseService.start(context);
     }
 }

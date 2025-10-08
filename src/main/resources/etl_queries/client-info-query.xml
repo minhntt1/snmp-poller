@@ -29,86 +29,6 @@
             )
         ]]>
     </entry>
-    <entry key="getListUnprocessed">
-        select
-
-        aidis.id
-
-        from network_statistics.aruba_iap_device_info_stg aidis
-
-        where aidis.mark = 0
-
-        order by aidis.id
-
-        limit 10000
-    </entry>
-    <entry key="getListProcessedUptime"><![CDATA[
-        with uptime_list_device_unprocessed as (
-            select
-            distinct
-            aidis.device_mac,aidis.device_name,aidis.device_ip,aidis.device_wlan_mac
-            from aruba_iap_device_info_stg aidis
-            where aidis.id in %s
-        )
-        select
-        id
-        from (
-            select
-            aidis.id,
-            row_number() over(
-                partition by aidis.device_mac,aidis.device_name,aidis.device_ip,aidis.device_wlan_mac
-                order by aidis.poll_time desc,aidis.id desc
-            ) as rn
-            from (
-                select
-                *
-                from aruba_iap_device_info_stg aidi
-                where mark=1
-                order by id desc
-                limit 2000 -- limit to earliest 1000 processed records to look back (~ last 2 hrs)
-            ) aidis
-            where (aidis.device_mac,aidis.device_name,aidis.device_ip,aidis.device_wlan_mac)
-            in (select * from uptime_list_device_unprocessed)
-        ) x
-        where rn=1
-    ]]></entry>
-    <entry key="getListProcessedTraffic">
-        <![CDATA[
-            with uptime_list_device_unprocessed as (
-                select
-                distinct
-                date_format(aidi.poll_time,'%%Y-%%m-%%d %%H:00:00'),
-                aidi.device_mac,
-                aidi.device_name
-                from aruba_iap_device_info_stg aidi
-                where aidi.id in %s
-            )
-            select
-            id
-            from (
-                select
-                aidi.id,
-                row_number() over(
-                    partition by
-                        date_format(aidi.poll_time,'%%Y-%%m-%%d %%H:00:00'),
-                        aidi.device_mac,
-                        aidi.device_name
-                    order by aidi.poll_time desc,aidi.id desc
-                ) as rn
-                from (
-                    select
-                    *
-                    from aruba_iap_device_info_stg aidi
-                    where mark=1
-                    order by id desc
-                    limit 2000 -- limit to earliest 1000 processed records to look back (~ last 2 hrs)
-                ) aidi
-                where (date_format(aidi.poll_time,'%%Y-%%m-%%d %%H:00:00'),aidi.device_mac,aidi.device_name)
-                in (select * from uptime_list_device_unprocessed)
-            ) x
-            where rn=1;
-        ]]>
-    </entry>
     <entry key="insertIntoDateDim">
         <![CDATA[
             insert ignore into network_statistics.date_dim(date) (
@@ -116,7 +36,7 @@
                 distinct date(aidis.poll_time)
                 from network_statistics.aruba_iap_device_info_stg aidis
                 left join network_statistics.date_dim dd on date(aidis.poll_time) = dd.date
-                where dd.date_key is null and aidis.id in %s
+                where dd.date_key is null
             )
         ]]>
     </entry>
@@ -127,7 +47,7 @@
 				distinct time_to_sec(time(aidis.poll_time))
 				from network_statistics.aruba_iap_device_info_stg aidis
 				left join network_statistics.time_dim td on time_to_sec(time(aidis.poll_time)) = td.time
-				where td.time_key is null and aidis.id in %s
+				where td.time_key is null
 			 )
         ]]>
     </entry>
@@ -135,10 +55,10 @@
         <![CDATA[
             insert ignore into network_statistics.time_dim(time) (
 				select
-				distinct time_to_sec( date_format(time(aidis.poll_time),'%%H:00:00') )
+				distinct time_to_sec( date_format(time(aidis.poll_time),'%H:00:00') ) -- not use java escape of % because not formatting string
 				from network_statistics.aruba_iap_device_info_stg aidis
-				left join network_statistics.time_dim td on time_to_sec(date_format(time(aidis.poll_time),'%%H:00:00')) = td.time
-				where td.time_key is null and aidis.id in %s
+				left join network_statistics.time_dim td on time_to_sec(date_format(time(aidis.poll_time),'%H:00:00')) = td.time
+				where td.time_key is null
 			)
         ]]>
     </entry>
@@ -153,7 +73,7 @@
 				from network_statistics.aruba_iap_device_info_stg aidis
 				left join network_statistics.device_dim dd on aidis.device_mac=dd.device_mac
 				and aidis.device_name=dd.device_name
-				where dd.device_key is null and aidis.id in %s
+				where dd.device_key is null
 			)
         ]]>
     </entry>
@@ -166,43 +86,18 @@
 				null
 				from network_statistics.aruba_iap_device_info_stg aidis
 				left join network_statistics.ip_dim id on aidis.device_ip=id.ipv4
-				where id.ip_key is null and aidis.id in %s
+				where id.ip_key is null
 			)
         ]]>
     </entry>
     <entry key="insertIntoDateDimDateUptimeNorm">
         <![CDATA[
             insert ignore into date_dim(date) (
-				with connect_time as (
-					select
-					connect_time
-					from (
-						select
-						aidi.device_mac,
-						aidi.device_name,
-						aidi.device_ip,
-						aidi.device_wlan_mac,
-						aidi.poll_time - interval aidi.device_uptime_seconds second as connect_time,
-						timestampdiff(
-							second,
-							lag(aidi.poll_time - interval aidi.device_uptime_seconds second,1,'1970-01-01 00:00:00')
-							over(partition by device_mac,device_name,device_ip,device_wlan_mac order by poll_time,id),
-							aidi.poll_time - interval aidi.device_uptime_seconds second
-						) as diff_uptime,
-						aidi.mark
-						from aruba_iap_device_info_stg aidi
-						where aidi.id in %s
-					) x
-					where diff_uptime>600 and mark=0 -- ignore processed
-				)
-
 				select
-
-				distinct date(connect_time)
-
-				from connect_time ct
-
-				left join date_dim dd on date(connect_time)=dd.date
+				distinct
+				date(aidi.poll_time - interval aidi.device_uptime_seconds second)
+				from aruba_iap_device_info_stg aidi
+				left join date_dim dd on date(aidi.poll_time - interval aidi.device_uptime_seconds second)=dd.date
 				where dd.date_key is null
 			)
         ]]>
@@ -210,159 +105,55 @@
     <entry key="insertIntoDateDimTimeUptimeNorm">
         <![CDATA[
             insert ignore into time_dim(time) (
-				with connect_time as (
-					select
-					connect_time
-					from (
-						select
-						aidi.device_mac,
-						aidi.device_name,
-						aidi.device_ip,
-						aidi.device_wlan_mac,
-						aidi.poll_time - interval aidi.device_uptime_seconds second as connect_time,
-						timestampdiff(
-							second,
-							lag(aidi.poll_time - interval aidi.device_uptime_seconds second,1,'1970-01-01 00:00:00')
-							over(partition by device_mac,device_name,device_ip,device_wlan_mac order by poll_time,id),
-							aidi.poll_time - interval aidi.device_uptime_seconds second
-						) as diff_uptime,
-						aidi.mark
-						from aruba_iap_device_info_stg aidi
-						where aidi.id in %s
-					) x
-					where diff_uptime>600 and mark=0 -- ignore processed
-				)
-
 				select
-				distinct time_to_sec(time(connect_time))
-				from connect_time ct
-				left join time_dim td on time_to_sec(time(connect_time))=td.time
+				distinct
+				time_to_sec(time(aidi.poll_time - interval aidi.device_uptime_seconds second))
+				from aruba_iap_device_info_stg aidi
+				left join time_dim td on time_to_sec(time(aidi.poll_time - interval aidi.device_uptime_seconds second))=td.time
 				where td.time_key is null
 			)
         ]]>
     </entry>
-    <entry key="getListUnprocessedForUpdate">
-        <![CDATA[
-            select
-            aidis.id
-            from network_statistics.aruba_iap_device_info_stg aidis
-            where aidis.mark = 0
-            and aidis.id in %s
-            for update
-        ]]>
-    </entry>
-    <entry key="getListProcessedUptimeForShare">
-        <![CDATA[
-            select
-            aidis.id
-            from network_statistics.aruba_iap_device_info_stg aidis
-            where aidis.mark = 1
-            and aidis.id in %s
-            for share
-        ]]>
-    </entry>
-    <entry key="getListProcessedTrafficForShare">
-        <![CDATA[
-            select
-            aidis.id
-            from network_statistics.aruba_iap_device_info_stg aidis
-            where aidis.mark = 1
-            and aidis.id in %s
-            for share
-        ]]>
-    </entry>
+
+    <!--this step is to normalize device traffic-->
     <entry key="updateFactTableDeviceTrafficByHour">
         <![CDATA[
             insert into network_statistics.device_traffic_by_hour_fact(date_key,time_key,device_key,transmission_bytes) (
-				select
-				*
-				from (
-					select
-					x.date_key,
-					x.time_key,
-					x.device_key,
-					sum(transmission_bytes) as transmission_bytes_val
-					from (
-						select
-						dd.date_key,
-						td.time_key,
-						dd1.device_key,
-						aidi.device_rx - if(
-							lag(aidi.device_rx,1,aidi.device_rx) over(partition by dd.date_key,td.time_key,dd1.device_key order by aidi.poll_time,aidi.id)
-							>
-							aidi.device_rx,
-							0,
-							lag(aidi.device_rx,1,aidi.device_rx) over(partition by dd.date_key,td.time_key,dd1.device_key order by aidi.poll_time,aidi.id)
-						)
-						+
-						aidi.device_tx - if(
-							lag(aidi.device_tx,1,aidi.device_tx) over(partition by dd.date_key,td.time_key,dd1.device_key order by aidi.poll_time,aidi.id)
-							>
-							aidi.device_tx,
-							0,
-							lag(aidi.device_tx,1,aidi.device_tx) over(partition by dd.date_key,td.time_key,dd1.device_key order by aidi.poll_time,aidi.id)
-						)
-						as transmission_bytes
-						from aruba_iap_device_info_stg aidi
-						join date_dim dd on dd.date_key=(
-							select date_key from
-							date_dim
-							where date(aidi.poll_time)=date
-							order by date_key desc limit 1
-						)
-						join time_dim td on td.time_key=(
-							select time_key from
-							time_dim
-							where time_to_sec(date_format(time(aidi.poll_time),'%%H:00:00'))=time
-							order by time_key desc limit 1
-						)
-						join device_dim dd1 on dd1.device_key=(
-							select device_key from
-							device_dim
-							where device_iface_wifi=1 and aidi.device_mac=device_mac and aidi.device_name=device_name
-							order by device_key desc limit 1
-						)
-						where aidi.id in %s
-					) x
-					group by 1,2,3
-				) tmp
+                select
+
+                dd.date_key,
+                td.time_key,
+                dd1.device_key,
+                aidi.transmission_bytes_val
+
+                from (%s) aidi  -- PAY HIGH ATTENTION TO EMBEDDED QUERY
+
+                join date_dim dd on dd.date_key=(
+                    select date_key from
+                    date_dim
+                    where aidi.date=date
+                    order by date_key desc limit 1
+                )
+                join time_dim td on td.time_key=(
+                    select time_key from
+                    time_dim
+                    where aidi.time=time
+                    order by time_key desc limit 1
+                )
+                join device_dim dd1 on dd1.device_key=(
+                    select device_key from
+                    device_dim
+                    where device_iface_wifi=1 and aidi.device_mac=device_mac and aidi.device_name=device_name
+                    order by device_key desc limit 1
+                )
 			)
 			on duplicate key update transmission_bytes=transmission_bytes+transmission_bytes_val
         ]]>
     </entry>
+    <!--this step is to get wlan connection-->
     <entry key="updateFactTableDeviceWlanConnections">
         <![CDATA[
             insert ignore into device_wlan_connections_fact (
-				with first_up_time_per_device as (
-					select
-					device_mac,
-					device_name,
-					device_ip,
-					device_wlan_mac,
-					connect_time
-					from (
-						select
-						-- each time mac, name, ip, wlan mac changed -> consider it creates new connection
-						-- or, can detect based on diff uptime threshold
-						aidi.device_mac,
-						aidi.device_name,
-						aidi.device_ip,
-						aidi.device_wlan_mac,
-						aidi.poll_time - interval aidi.device_uptime_seconds second as connect_time,
-						timestampdiff(
-							second,
-							lag(aidi.poll_time - interval aidi.device_uptime_seconds second,1,'1970-01-01 00:00:00')
-							over(partition by device_mac,device_name,device_ip,device_wlan_mac order by poll_time,id),
-							aidi.poll_time - interval aidi.device_uptime_seconds second
-						) as diff_uptime,
-						aidi.mark
-						from aruba_iap_device_info_stg aidi
-						where aidi.id in %s
-					) x
-					where diff_uptime>600 and mark=0 -- threshold uptime is 10 seconds
-					-- ignore processed because previous of processed is 1970 -> already counted
-				)
-
 				select
 
 				dd.date_key,
@@ -374,17 +165,18 @@
 				ifnull(vd.vendor_key,-2147483648),
 				ifnull(vd1.vendor_key,-2147483648)
 
-				from first_up_time_per_device aidi
+				from (%s) aidi  -- PAY HIGH ATTENTION TO EMBEDDED QUERY
+
 				join date_dim dd on dd.date_key=(
 					select date_key from
 					date_dim
-					where date(aidi.connect_time)=date
+					where aidi.date_connect=date
 					order by date_key desc limit 1
 				)
 				join time_dim td on td.time_key=(
 					select time_key from
 					time_dim
-					where time_to_sec(time(aidi.connect_time))=time
+					where aidi.time_connect=time
 					order by time_key desc limit 1
 				)
 				join device_dim dd1 on dd1.device_key=(
@@ -436,28 +228,28 @@
 				dd1.device_key,
 				aidi.device_snr
 
-				from aruba_iap_device_info_stg aidi
+				from (%s) aidi -- PAY HIGH ATTENTION TO EMBEDDED QUERY
 
 				join date_dim dd on dd.date_key=(
 					select date_key from
 					date_dim
-					where date(aidi.poll_time)=date
+					where aidi.date_metric=date
 					order by date_key desc limit 1
 				)
+
 				join time_dim td on td.time_key=(
 					select time_key from
 					time_dim
-					where time_to_sec(time(aidi.poll_time))=time
+					where aidi.time_metric=time
 					order by time_key desc limit 1
 				)
+
 				join device_dim dd1 on dd1.device_key=(
 					select device_key from
 					device_dim
 					where device_iface_wifi=1 and  aidi.device_mac=device_mac and aidi.device_name=device_name
 					order by device_key desc limit 1
 				)
-				where aidi.id in %s
-				and aidi.mark=0 -- exclude mark=1 because already inserted
 			)
         ]]>
     </entry>
@@ -470,7 +262,7 @@
 				id.ip_key,
 				aidi.device_uptime_seconds
 
-				from aruba_iap_device_info_stg aidi
+				from (%s) aidi -- PAY HIGH ATTENTION TO EMBEDDED QUERY
 
 				join device_dim dd1 on dd1.device_key=(
 					select device_key from
@@ -484,17 +276,40 @@
 					where aidi.device_ip=ipv4
 					order by ip_key desc limit 1
 				)
-
-				where aidi.id in %s
-				and aidi.mark=0 -- exclude mark=1 because already inserted
-
-				order by 1,2,3 desc
 			)
         ]]>
     </entry>
-    <entry key="markComplete">
+
+    <entry key="getAllStaging">
         <![CDATA[
-            update aruba_iap_device_info_stg set mark=1 where id in %s
+            select * from aruba_iap_device_info_stg
+            order by id -- order id to get increasing time (id is primary key and indexed, ordered, but we want it more explicit)
+        ]]>
+    </entry>
+    <entry key="copyStgToArchive">
+        <![CDATA[
+            insert into aruba_iap_device_info_archive select * from aruba_iap_device_info_stg
+        ]]>
+    </entry>
+
+    <!-- following clean up queries should be outside main transaction -->
+    <entry key="dropCurrentStg">
+        <![CDATA[
+            drop table aruba_iap_device_info_stg
+        ]]>
+    </entry>
+    <entry key="createNewStg">
+        <![CDATA[
+            create table if not exists
+            aruba_iap_device_info_stg like aruba_iap_device_info_stg_ingest
+        ]]>
+    </entry>
+    <entry key="moveStgToIngest">
+        <![CDATA[
+            rename table
+            aruba_iap_device_info_stg to tmp,
+            aruba_iap_device_info_stg_ingest to aruba_iap_device_info_stg,
+            tmp to aruba_iap_device_info_stg_ingest
         ]]>
     </entry>
 </properties>

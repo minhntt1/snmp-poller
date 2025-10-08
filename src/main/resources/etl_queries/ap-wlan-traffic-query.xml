@@ -1,49 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
 <properties>
-    <entry key="getListUnprocessed">
-        <![CDATA[
-            select
-            aiwts.id
-            from aruba_iap_wlan_traffic_stg aiwts
-            where aiwts.mark=0
-            order by aiwts.id
-            limit 10000
-        ]]>
-    </entry>
-    <entry key="getListProcessed">
-        <![CDATA[
-            with cte as(
-                select
-                distinct
-                date(aiwts.poll_time),
-                time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00')),
-                aiwts.wlan_mac,
-                aiwts.wlan_essid
-                from aruba_iap_wlan_traffic_stg aiwts
-                where aiwts.id in %s
-            )
-            select
-            id
-            from (
-                select
-                aiwts.id,
-                row_number() over(partition by date(aiwts.poll_time),time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00')),aiwts.wlan_mac,aiwts.wlan_essid
-                order by aiwts.poll_time desc,aiwts.id desc) as rn
-                from (
-                    select
-                    *
-                    from aruba_iap_wlan_traffic_stg aiwts
-                    where mark=1
-                    order by id desc
-                    limit 100 -- limit to 100 because this table is small ~ last 2 hrs
-                ) aiwts
-                where (date(aiwts.poll_time),time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00')),aiwts.wlan_mac,aiwts.wlan_essid)
-                in (select * from cte)
-            ) x
-            where x.rn=1
-        ]]>
-    </entry>
     <entry key="insertIntoApDim">
         <![CDATA[
             insert ignore into ap_dim(ap_mac,ap_name) (
@@ -54,7 +11,6 @@
                 from aruba_iap_wlan_traffic_stg aiwts
                 left join ap_dim ad on aiwts.wlan_ap_mac=ad.ap_mac
                 where ad.ap_key is null
-                and aiwts.id in %s
             )
         ]]>
     </entry>
@@ -69,7 +25,6 @@
                 left join gw_iface_dim gid on aiwts.wlan_mac=gid.iface_mac
                 and aiwts.wlan_essid=gid.iface_name
                 where gid.iface_key is null
-                and aiwts.id in %s
             )
         ]]>
     </entry>
@@ -81,7 +36,7 @@
                 date(aiwts.poll_time)
                 from aruba_iap_wlan_traffic_stg aiwts
                 left join date_dim dd on date(aiwts.poll_time)=dd.date
-                where dd.date_key is null and aiwts.id in %s
+                where dd.date_key is null
             );
         ]]>
     </entry>
@@ -93,7 +48,7 @@
                 time_to_sec(time(aiwts.poll_time))
                 from aruba_iap_wlan_traffic_stg aiwts
                 left join time_dim td on time_to_sec(time(aiwts.poll_time))=td.time
-                where td.time_key is null and aiwts.id in %s
+                where td.time_key is null
             )
         ]]>
     </entry>
@@ -101,98 +56,80 @@
         <![CDATA[
             insert ignore into time_dim(time) (
                 select
-                distinct time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00'))
+                distinct time_to_sec(date_format(time(aiwts.poll_time),'%H:00:00'))
                 from aruba_iap_wlan_traffic_stg aiwts
-                left join time_dim td on time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00'))=td.time
-                where td.time_key is null and aiwts.id in %s
+                left join time_dim td on time_to_sec(date_format(time(aiwts.poll_time),'%H:00:00'))=td.time
+                where td.time_key is null
             )
-        ]]>
-    </entry>
-    <entry key="getListUnprocessedForUpdate">
-        <![CDATA[
-            select
-            aiwts.id
-            from aruba_iap_wlan_traffic_stg aiwts
-            where aiwts.mark=0
-            and aiwts.id in %s
-            for update
-        ]]>
-    </entry>
-    <entry key="getListProcessedForShare">
-        <![CDATA[
-            select
-            aiwts.id
-            from aruba_iap_wlan_traffic_stg aiwts
-            where aiwts.mark=1
-            and aiwts.id in %s
-            for share
         ]]>
     </entry>
     <entry key="updateFactTable">
         <![CDATA[
             insert into iface_traffic_by_hour_fact(date_key,time_key,iface_key,transmission_bytes) (
                 select
-                *
-                from (
-                    select
-                    x.date_key,
-                    x.time_key,
-                    x.iface_key,
-                    sum(transmission_bytes) as transmission_bytes_val
-                    from (
-                        select
-                        dd.date_key,
-                        td.time_key,
-                        gid.iface_key,
-                        -- consider case when previous tx/rx value is > current value (when counter reset to 0),
-                        -- then accept cuurent value
-                        -- if there is no previous value, then consider previous is current value
-                        aiwts.wlan_tx - if(
-                            lag(aiwts.wlan_tx,1,aiwts.wlan_tx) over(partition by dd.date_key,td.time_key,gid.iface_key order by aiwts.poll_time,aiwts.id)
-                            >
-                            aiwts.wlan_tx,
-                            0,
-                            lag(aiwts.wlan_tx,1,aiwts.wlan_tx) over(partition by dd.date_key,td.time_key,gid.iface_key order by aiwts.poll_time,aiwts.id)
-                        )
-                        +
-                        aiwts.wlan_rx - if(
-                            lag(aiwts.wlan_rx,1,aiwts.wlan_rx) over(partition by dd.date_key,td.time_key,gid.iface_key order by aiwts.poll_time,aiwts.id)
-                            >
-                            aiwts.wlan_rx,
-                            0,
-                            lag(aiwts.wlan_rx,1,aiwts.wlan_rx) over(partition by dd.date_key,td.time_key,gid.iface_key order by aiwts.poll_time,aiwts.id)
-                        )
-                        as transmission_bytes
-                        from aruba_iap_wlan_traffic_stg aiwts
-                        join date_dim dd on dd.date_key=(
-                            select date_key from
-                            date_dim
-                            where date(aiwts.poll_time)=date
-                            order by date_key desc limit 1
-                        )
-                        join time_dim td on td.time_key=(
-                            select time_key from
-                            time_dim
-                            where time_to_sec(date_format(time(aiwts.poll_time),'%%H:00:00'))=time
-                            order by time_key desc limit 1
-                        )
-                        join gw_iface_dim gid on gid.iface_key=(
-                            select iface_key from
-                            gw_iface_dim
-                            where aiwts.wlan_mac=iface_mac and aiwts.wlan_essid=iface_name
-                            order by iface_key desc limit 1
-                        )
-                        where aiwts.id in %s
-                    ) x
-                    group by 1,2,3
-                ) tmp
+                dd.date_key,
+                td.time_key,
+                gid.iface_key,
+                aiwts.transmission_bytes_val
+
+                as transmission_bytes
+                from (%s) aiwts
+
+                join date_dim dd on dd.date_key=(
+                    select date_key from
+                    date_dim
+                    where aiwts.date=date
+                    order by date_key desc limit 1
+                )
+
+                join time_dim td on td.time_key=(
+                    select time_key from
+                    time_dim
+                    where aiwts.hour=time
+                    order by time_key desc limit 1
+                )
+
+                join gw_iface_dim gid on gid.iface_key=(
+                    select iface_key from
+                    gw_iface_dim
+                    where aiwts.wlan_mac=iface_mac and aiwts.wlan_essid=iface_name
+                    order by iface_key desc limit 1
+                )
             )
             on duplicate key update transmission_bytes=transmission_bytes+transmission_bytes_val
         ]]>
     </entry>
-    <entry key="markComplete">
+
+    <entry key="getAllStaging">
         <![CDATA[
-            update aruba_iap_wlan_traffic_stg set mark=1 where id in %s
+             select * from aruba_iap_wlan_traffic_stg
+             order by id -- order id to get increasing time
+        ]]>
+    </entry>
+    <entry key="copyStgToArchive">
+        <![CDATA[
+            insert into aruba_iap_wlan_traffic_archive select * from aruba_iap_wlan_traffic_stg
+        ]]>
+    </entry>
+
+    <!-- following clean up queries should be outside main transaction -->
+    <entry key="dropCurrentStg">
+        <![CDATA[
+            drop table aruba_iap_wlan_traffic_stg
+        ]]>
+    </entry>
+    <entry key="createNewStg">
+        <![CDATA[
+            create table if not exists
+            aruba_iap_wlan_traffic_stg like aruba_iap_wlan_traffic_stg_ingest
+        ]]>
+    </entry>
+    <entry key="moveStgToIngest">
+        <![CDATA[
+            rename table
+            aruba_iap_wlan_traffic_stg to tmp,
+            aruba_iap_wlan_traffic_stg_ingest to aruba_iap_wlan_traffic_stg,
+            tmp to aruba_iap_wlan_traffic_stg_ingest
         ]]>
     </entry>
 </properties>

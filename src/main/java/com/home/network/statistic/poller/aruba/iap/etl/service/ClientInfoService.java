@@ -1,8 +1,13 @@
 package com.home.network.statistic.poller.aruba.iap.etl.service;
 
 import com.home.network.statistic.common.model.ListSqlQuery;
+import com.home.network.statistic.poller.aruba.iap.etl.ClientTrafficHourlyCount;
+import com.home.network.statistic.poller.aruba.iap.etl.ClientUptimeRecord;
+import com.home.network.statistic.poller.aruba.iap.etl.ClientWlanConnectEvent;
+import com.home.network.statistic.poller.aruba.iap.etl.ClientWlanMetricEvent;
 import com.home.network.statistic.poller.aruba.iap.out.ArubaAiClientInfoEntity;
 import lombok.extern.slf4j.Slf4j;
+import org.quartz.JobExecutionContext;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
@@ -11,8 +16,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.stream.Stream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -41,207 +47,151 @@ public class ClientInfoService implements BaseService {
 		jdbcTemplate.execute(listSqlQuery.getQueryValue("addUndefinedGwIfaceDim"));
 	}
 
-	public  List<ArubaAiClientInfoEntity> getListUnprocessed() {
-		return jdbcTemplate.query(listSqlQuery.getQueryValue("getListUnprocessed"),
-			new BeanPropertyRowMapper<>(ArubaAiClientInfoEntity.class)
-		);
-	}
-
-	public  List<ArubaAiClientInfoEntity> getListProcessedUptime(String listIdUnprocessed) {
-		return jdbcTemplate
-			.query(
-				String.format(listSqlQuery.getQueryValue("getListProcessedUptime"),
-					listIdUnprocessed
-				),
-				new BeanPropertyRowMapper<>(ArubaAiClientInfoEntity.class)
-			);
-	}
-
-	public  List<ArubaAiClientInfoEntity> getListProcessedTraffic(String listIdUnprocessed) {
-		return jdbcTemplate.query(
-			String.format(listSqlQuery.getQueryValue("getListProcessedTraffic"),
-				listIdUnprocessed
-			),
-			new BeanPropertyRowMapper<>(ArubaAiClientInfoEntity.class)
-		);
-	}
-
-	public  void insertIntoDateDim(String listIdUnprocessed) {
+	public  void insertIntoDateDim() {
 		// normalize date
-		jdbcTemplate.execute(
-			String.format(listSqlQuery.getQueryValue("insertIntoDateDim"),
-				listIdUnprocessed
-			)
-		);
+		jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoDateDim"));
 	}
 
-	public  void insertIntoTimeDim(String listIdUnprocessed) {
+	public  void insertIntoTimeDim() {
 		// normalize by time
-		jdbcTemplate.execute(String.format(listSqlQuery.getQueryValue("insertIntoTimeDim"),
-			listIdUnprocessed)
-		);
+		jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoTimeDim"));
 	}
 
-	public  void insertIntoTimeDimHourNorm(String listIdUnprocessed) {
+	public  void insertIntoTimeDimHourNorm() {
 		// normalize by time hour
-		jdbcTemplate.execute(String.format(listSqlQuery.getQueryValue("insertIntoTimeDimHourNorm"),
-			listIdUnprocessed)
-		);
+		jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoTimeDimHourNorm"));
 	}
 
-	public  void insertIntoDeviceDim(String listIdUnprocessed) {
+	public  void insertIntoDeviceDim() {
 		// normalize by device
-		jdbcTemplate.execute(String.format(
-				listSqlQuery.getQueryValue("insertIntoDeviceDim"),
-			listIdUnprocessed)
-		);
+		jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoDeviceDim"));
 	}
 
-	public  void insertIntoIpDim(String listIdUnprocessed) {
+	public  void insertIntoIpDim() {
 		// normalize by ip
-		jdbcTemplate.execute(String.format(listSqlQuery.getQueryValue("insertIntoIpDim"),
-			listIdUnprocessed)
-		);
+		jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoIpDim"));
 	}
 
-	public  void insertIntoDateDimDateUptimeNorm(String listIdUnprocessedAndProcessedUptime) {
+	public  void insertIntoDateDimDateUptimeNorm() {
 		// normalize by date up time
-		jdbcTemplate.execute(String.format(listSqlQuery
-						.getQueryValue("insertIntoDateDimDateUptimeNorm"),
-			listIdUnprocessedAndProcessedUptime)
-		);
+		jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoDateDimDateUptimeNorm"));
 	}
 
-	public  void insertIntoDateDimTimeUptimeNorm(String listIdUnprocessedAndProcessedUptime) {
-		jdbcTemplate.execute(String.format(listSqlQuery.getQueryValue("insertIntoDateDimTimeUptimeNorm"),
-			listIdUnprocessedAndProcessedUptime)
-		);
+	public  void insertIntoDateDimTimeUptimeNorm() {
+		jdbcTemplate.execute(listSqlQuery.getQueryValue("insertIntoDateDimTimeUptimeNorm"));
 	}
 
 	@Transactional(value = "appTx")
-	public void summarizeData(String listIdUnprocessed,
-							   String listIdProcessedTraffic,
-							   String listIdProcessedUptime,
-							   String listIdUnprocessedAndProcessedUptime,
-							   String listIdUnprocessedAndProcessedTraffic) {
+	public void summarizeData(JobExecutionContext context) {
 		log.info("start summarizing data");
 
-		jdbcTemplate.execute(
-			String.format(listSqlQuery.getQueryValue("getListUnprocessedForUpdate"),
-				listIdUnprocessed
-			)
-		);
+		// get device state context
+		var deviceStateMap = context.getJobDetail().getJobDataMap();
 
-		jdbcTemplate.execute(
-			String.format(listSqlQuery.getQueryValue("getListProcessedTrafficForShare"),
-				listIdProcessedTraffic
-			)
-		);
+		// maintain copy of state to keep track of what devices to remove
+		var copyDeviceStateMap = new HashMap<>(Map.copyOf(deviceStateMap));
 
-		jdbcTemplate.execute(
-			String.format(listSqlQuery.getQueryValue("getListProcessedUptimeForShare"),
-				listIdProcessedUptime
-			)
-		);
+		// define list to store wlan connection, wlan metric, uptime per device, and hourly traffic
+		var clientWlanConnections = new ArrayList<ClientWlanConnectEvent>();
+		var clientWlanMetrics = new ArrayList<ClientWlanMetricEvent>();
+		var clientUptimeRecords = new HashMap<ClientUptimeRecord, ClientUptimeRecord>();
+		var clientHourlyTraffics = new HashMap<ClientTrafficHourlyCount, ClientTrafficHourlyCount>();
 
-		/* update fact table device_traffic_by_hour_fact */
-		jdbcTemplate.execute(String.format(listSqlQuery.getQueryValue("updateFactTableDeviceTrafficByHour"),
-			listIdUnprocessedAndProcessedTraffic)
-		);
+		try (var stream = jdbcTemplate.queryForStream(listSqlQuery.getQueryValue("getAllStaging"), new BeanPropertyRowMapper<>(ArubaAiClientInfoEntity.class))) {
+			for (var it = stream.iterator(); it.hasNext();) {
+				// curr device state
+				var currState = it.next();
+				// get device key based on device mac and device name, and device iface wifi because considering
+				// if same mac but name change, it is also a reconnection
+				var stateKey = currState.obtainJobStateKey();
 
-		// update fact device connection
-		/*
-		* NOTE: WHEN THERE IS STILL TWO ENTRIES WITH SAME MAC,NAME,IP,WLAN_MAC COEXIST IN FACT TABLE
-		* BUT DIFF CONNECT TIME IS < 600 (10 MINS)
-		* BECAUSE EARLIER FETCH LATEST MARKED FOR UPTIME BY POLLTIME DESC
-		* BUT DEVICE UPTIME GET FROM AP IS UNSTABLE, LATEST MARKED IS NOT THE LATEST UPTIME, EXAMPLE:
-		* IN FIRST POLL
-		* ID,DEVICE,IP,IFACE,CONNECT_TIME,MARK
-		* 1,1,1,1,1900-01-01 00:00:00,0
-		* 2,1,1,1,1900-01-01 00:10:00,0 -> THIS ENTRY DIFFERENCE WITH PREV IS >= 10 -> PUT INTO FACT TABLE
-		*
-		* IN SECOND POLL
-		* 3,1,1,1,1900-01-01 00:00:00,1
-		* 4,1,1,1,1900-01-01 00:10:00,1
-		* 5,1,1,1,1900-01-01 00:06:00,0	-> THIS ENTRY DIFFERENCE WITH PREV LATEST POLL TIMR MARKED IS < 10 -> IGNORE
-		* 6,1,1,1,1900-01-01 00:16:00,0	-> THIS ENTRY DIFFERENCE WITH PREV IS >= 10 -> WRITE TO FACT TABLE
-		*
-		* -> 1900-01-01 00:16:00 and 1900-01-01 00:10:00 coexist in db
-		* */
-		jdbcTemplate.execute(String.format(listSqlQuery.getQueryValue("updateFactTableDeviceWlanConnections"),
-			listIdUnprocessedAndProcessedUptime)
-		);
+				// get prev device state key
+				var prevState = ArubaAiClientInfoEntity.from(deviceStateMap.getString(stateKey));
 
-		// update fact device metrics
-		jdbcTemplate.execute(String.format(listSqlQuery.getQueryValue("updateFactTableDeviceWlanMetrics"),
-			listIdUnprocessed)
-		);
+				// update uptime regardless of previous state
+				var deviceUptime = new ClientUptimeRecord(currState);
+				clientUptimeRecords.computeIfAbsent(deviceUptime, kk -> deviceUptime).updateDeviceUptimeSeconds(currState);
 
-		// update fact device uptime
-		jdbcTemplate.execute(String.format(listSqlQuery.getQueryValue("updateFactTableDeviceWlanUptime"),
-			listIdUnprocessed)
-		);
+				// create metric event regardless of prev state
+				clientWlanMetrics.add(new ClientWlanMetricEvent(currState));
 
-		log.info("mark records start");
+				if (prevState != null) {
+					var deviceHourlyTraffic = new ClientTrafficHourlyCount(currState);
 
-		// once completed, mark all completed
-		jdbcTemplate.execute(
-			String.format(listSqlQuery.getQueryValue("markComplete"),
-				listIdUnprocessed
-			)
-		);
+					if (prevState.checkReconnect(currState))
+						clientWlanConnections.add(new ClientWlanConnectEvent(currState));
 
-		log.info("mark records completed");
+					clientHourlyTraffics.computeIfAbsent(deviceHourlyTraffic, kk -> deviceHourlyTraffic).adjustTraffic(prevState, currState);
+				} else {	// if device appear first time, no prev state
+					clientWlanConnections.add(new ClientWlanConnectEvent(currState));
+				}
+
+				// update state
+				deviceStateMap.put(stateKey, currState.toJson());
+
+				// mark current state not going to remove in below commands
+				copyDeviceStateMap.remove(stateKey);
+			}
+		}
+
+		// free up state storage: removing devices dont appear in current batch (its state will highly likely not usable, because its state is not continuos)
+		for (var key : copyDeviceStateMap.keySet()) {
+			deviceStateMap.remove(key);
+		}
+
+		var queryClientWlanConnections = ClientWlanConnectEvent.obtainSqlQuery(clientWlanConnections);
+		var queryClientWlanMetrics = ClientWlanMetricEvent.obtainSqlQuery(clientWlanMetrics);
+		var queryClientUptimeRecords = ClientUptimeRecord.obtainSqlQuery(clientUptimeRecords);
+		var queryClientHourlyTraffics = ClientTrafficHourlyCount.obtainSqlQuery(clientHourlyTraffics);
+
+		// summarize only when there is data
+		if (!queryClientWlanConnections.isBlank())
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTableDeviceWlanConnections").formatted(queryClientWlanConnections));
+		if (!queryClientHourlyTraffics.isBlank())
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTableDeviceTrafficByHour").formatted(queryClientHourlyTraffics));
+		if (!queryClientWlanMetrics.isBlank())
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTableDeviceWlanMetrics").formatted(queryClientWlanMetrics));
+		if (!queryClientUptimeRecords.isBlank())
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTableDeviceWlanUptime").formatted(queryClientUptimeRecords));
 
 		log.info("end summarizing data");
 	}
 
+	public void cleanUpBatch() {
+		// copy all staging data to archive
+		jdbcTemplate.execute(listSqlQuery.getQueryValue("copyStgToArchive"));
+
+		// drop current staging (batch processing table)
+		jdbcTemplate.execute(listSqlQuery.getQueryValue("dropCurrentStg"));
+
+		// create new batch process table
+		jdbcTemplate.execute(listSqlQuery.getQueryValue("createNewStg"));
+
+		// flip new batch process table with ingest table for further processing
+		jdbcTemplate.execute(listSqlQuery.getQueryValue("moveStgToIngest"));
+	}
+
     @Override
-//    @Scheduled(fixedRate = 600_000) // 10 min
-    public void start() {
+    public void start(JobExecutionContext context) {
 		log.info("start");
 
+		// normalize by inserting null, etc
 		this.commonNormalize();
 
-		List<ArubaAiClientInfoEntity> listUnprocessed = this.getListUnprocessed();
+		// normalize data in stg table
+		insertIntoDateDim();
+		insertIntoTimeDim();
+		insertIntoTimeDimHourNorm();
+		insertIntoDeviceDim();
+		insertIntoIpDim();
+		insertIntoDateDimDateUptimeNorm();
+		insertIntoDateDimTimeUptimeNorm();
 
-		if (listUnprocessed.isEmpty()) {
-			log.info("no data found");
-			return;
-		}
+		// summarize data
+		applicationContext.getBean(ClientInfoService.class).summarizeData(context);
 
-		String listIdUnprocessed = ArubaAiClientInfoEntity.constructIdString(listUnprocessed.parallelStream());
-
-		this.insertIntoDateDim(listIdUnprocessed);
-		this.insertIntoTimeDim(listIdUnprocessed);
-		this.insertIntoTimeDimHourNorm(listIdUnprocessed);
-		this.insertIntoDeviceDim(listIdUnprocessed);
-		this.insertIntoIpDim(listIdUnprocessed);
-		this.insertIntoDateDimDateUptimeNorm(listIdUnprocessed);
-		this.insertIntoDateDimTimeUptimeNorm(listIdUnprocessed);
-
-		List<ArubaAiClientInfoEntity> listProcessedTraffic = this.getListProcessedTraffic(listIdUnprocessed);
-		List<ArubaAiClientInfoEntity> listProcessedUptime = this.getListProcessedUptime(listIdUnprocessed);
-
-		if (listProcessedTraffic.isEmpty()) {
-			listProcessedTraffic.add(ArubaAiClientInfoEntity.builder().id(-1L).build());
-		}
-		if (listProcessedUptime.isEmpty()) {
-			listProcessedUptime.add(ArubaAiClientInfoEntity.builder().id(-1L).build());
-		}
-
-		String listIdProcessedTraffic = ArubaAiClientInfoEntity.constructIdString(listProcessedTraffic.parallelStream());
-		String listIdProcessedUptime = ArubaAiClientInfoEntity.constructIdString(listProcessedUptime.parallelStream());
-		String listIdUnprocessedAndProcessedUptime = ArubaAiClientInfoEntity.constructIdString(
-			Stream.concat(listUnprocessed.parallelStream(), listProcessedTraffic.parallelStream())
-		);
-		String listIdUnprocessedAndProcessedTraffic = ArubaAiClientInfoEntity.constructIdString(
-			Stream.concat(listUnprocessed.parallelStream(), listProcessedUptime.parallelStream())
-		);
-
-		ClientInfoService ctx = applicationContext.getBean(this.getClass());
-
-		ctx.summarizeData(listIdUnprocessed, listIdProcessedTraffic, listIdProcessedUptime, listIdUnprocessedAndProcessedUptime, listIdUnprocessedAndProcessedTraffic);
+		// clean up batch
+		cleanUpBatch();
 
 		log.info("end");
     }

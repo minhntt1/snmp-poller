@@ -62,7 +62,7 @@ public class ArubaSnmpAiClientResponse extends ArubaSnmpAiResponse{
         log.info("parsed response: {}", this);
 
         return ArubaAiClientInfoEntity.builder()
-                .pollTime(this.toUTC7DateTime())
+                .pollTime(this.toCurrentLdt())
                 .deviceMac(this.aiClientMACAddress)
                 .deviceWlanMac(this.aiClientWlanMACAddress)
                 .deviceIp(this.aiClientIPAddress)
@@ -72,7 +72,6 @@ public class ArubaSnmpAiClientResponse extends ArubaSnmpAiResponse{
                 .deviceTx(this.aiClientTxDataBytes)
                 .deviceSnr(this.aiClientSNR)
                 .deviceUptimeSeconds(this.toClientUptimeSeconds())
-                .mark(0)
                 .build();
     }
 }
