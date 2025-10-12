@@ -3,6 +3,7 @@ package com.home.network.statistic.poller.aruba.iap.etl.service;
 import com.home.network.statistic.common.model.ListSqlQuery;
 import com.home.network.statistic.poller.aruba.iap.etl.ApRebootWeeklyCount;
 import com.home.network.statistic.poller.aruba.iap.out.ArubaAiApInfoEntity;
+import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.JobExecutionContext;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -122,7 +123,10 @@ public class ApInfoService implements BaseService {
     }
 
     @Override
+    @Timed(value = "aruba.iap.etl.ap.info")
     public void start(JobExecutionContext context) {
+        log.info("start");
+
         // ap info service
         // first normalize all queries in staging to dimension
         insertIntoDateDim();
@@ -136,5 +140,7 @@ public class ApInfoService implements BaseService {
 
         // after summarizing done, delete old table, swap ingest table and batch table to next process
         cleanUpBatch();
+
+        log.info("end");
     }
 }

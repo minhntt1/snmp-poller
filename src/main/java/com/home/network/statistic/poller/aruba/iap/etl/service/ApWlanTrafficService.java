@@ -5,6 +5,7 @@ import com.home.network.statistic.poller.aruba.iap.etl.ApRebootWeeklyCount;
 import com.home.network.statistic.poller.aruba.iap.etl.ApTrafficHourlyCount;
 import com.home.network.statistic.poller.aruba.iap.out.ArubaAiApInfoEntity;
 import com.home.network.statistic.poller.aruba.iap.out.ArubaAiWlanTrafficEntity;
+import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.JobExecutionContext;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -131,7 +132,10 @@ public class ApWlanTrafficService implements BaseService {
     }
 
     @Override
+    @Timed(value = "aruba.iap.etl.ap.wlan.traffic")
     public void start(JobExecutionContext context) {
+        log.info("start");
+
         // normalize data
         insertIntoApDim();
         insertIntoGwIfaceDim();
@@ -144,5 +148,7 @@ public class ApWlanTrafficService implements BaseService {
 
         // clean up batch
         cleanUpBatch();
+
+        log.info("end");
     }
 }

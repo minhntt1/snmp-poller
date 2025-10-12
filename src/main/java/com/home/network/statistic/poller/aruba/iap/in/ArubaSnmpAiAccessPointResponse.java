@@ -22,7 +22,7 @@ public class ArubaSnmpAiAccessPointResponse extends ArubaSnmpAiResponse {
     public ArubaSnmpAiAccessPointResponse(TableEvent event) {
         super(Clock.systemUTC().millis());
 
-        log.info("table event: {}", event);
+        log.debug("table event: {}", event);
 
         for (VariableBinding column : event.getColumns()) {
             OID oid = column.getOid();
@@ -45,7 +45,7 @@ public class ArubaSnmpAiAccessPointResponse extends ArubaSnmpAiResponse {
     }
 
     public ArubaAiApInfoEntity toApInfo() {
-        log.info("parsed response: {}", this);
+        log.debug("parsed response: {}", this);
 
         return ArubaAiApInfoEntity.builder()
                 .pollTime(this.toCurrentLdt())

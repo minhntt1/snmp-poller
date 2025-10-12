@@ -23,4 +23,5 @@ module com.home.network.statistic {
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.datatype.jsr310;
     requires spring.jcl;
+    requires micrometer.core;
 }

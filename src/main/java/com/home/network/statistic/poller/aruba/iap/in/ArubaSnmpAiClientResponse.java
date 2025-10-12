@@ -28,7 +28,7 @@ public class ArubaSnmpAiClientResponse extends ArubaSnmpAiResponse{
     ) {
         super(Clock.systemUTC().millis());
 
-        log.info("table event: {}", tableEvent);
+        log.debug("table event: {}", tableEvent);
 
         for (VariableBinding column : tableEvent.getColumns()) {
             OID oid = column.getOid();
@@ -59,7 +59,7 @@ public class ArubaSnmpAiClientResponse extends ArubaSnmpAiResponse{
     }
 
     public ArubaAiClientInfoEntity toClientInfo() {
-        log.info("parsed response: {}", this);
+        log.debug("parsed response: {}", this);
 
         return ArubaAiClientInfoEntity.builder()
                 .pollTime(this.toCurrentLdt())

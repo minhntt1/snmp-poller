@@ -24,7 +24,7 @@ public class ArubaSnmpAiWlanResponse extends ArubaSnmpAiResponse {
     ) {
         super(Clock.systemUTC().millis());
 
-        log.info("table event: {}", tableEvent);
+        log.debug("table event: {}", tableEvent);
 
         for (VariableBinding column : tableEvent.getColumns()) {
             OID oid = column.getOid();
@@ -43,7 +43,7 @@ public class ArubaSnmpAiWlanResponse extends ArubaSnmpAiResponse {
     }
 
     public ArubaAiWlanTrafficEntity toWlanTraffic() {
-        log.info("parsed response: {}", this);
+        log.debug("parsed response: {}", this);
 
         return ArubaAiWlanTrafficEntity.builder()
                 .pollTime(this.toCurrentLdt())
