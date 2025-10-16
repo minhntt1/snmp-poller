@@ -63,6 +63,23 @@
             )
         ]]>
     </entry>
+
+    <entry key="createTempForUpdateFactTable">
+        create temporary table tmp_iface_traffic_by_hour_fact (
+            `date` date,
+            `hour` int,
+            `wlan_mac` bigint,
+            `wlan_essid` varchar(255),
+            `transmission_bytes_val` bigint
+        )
+    </entry>
+    <entry key="insertTmpFactToTempTableUpdateFactTable">
+        insert into tmp_iface_traffic_by_hour_fact
+        values (?,?,?,?,?)
+    </entry>
+    <entry key="dropTempForUpdateFactTable">
+        drop table tmp_iface_traffic_by_hour_fact
+    </entry>
     <entry key="updateFactTable">
         <![CDATA[
             insert into iface_traffic_by_hour_fact(date_key,time_key,iface_key,transmission_bytes) (
@@ -72,8 +89,7 @@
                 gid.iface_key,
                 aiwts.transmission_bytes_val
 
-                as transmission_bytes
-                from (%s) aiwts
+                from tmp_iface_traffic_by_hour_fact aiwts
 
                 join date_dim dd on dd.date_key=(
                     select date_key from

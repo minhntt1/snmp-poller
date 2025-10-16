@@ -140,20 +140,67 @@ public class ClientInfoService implements BaseService {
 			deviceStateMap.remove(key);
 		}
 
-		var queryClientWlanConnections = ClientWlanConnectEvent.obtainSqlQuery(clientWlanConnections);
-		var queryClientWlanMetrics = ClientWlanMetricEvent.obtainSqlQuery(clientWlanMetrics);
-		var queryClientUptimeRecords = ClientUptimeRecord.obtainSqlQuery(clientUptimeRecords);
-		var queryClientHourlyTraffics = ClientTrafficHourlyCount.obtainSqlQuery(clientHourlyTraffics);
+		var batchClientWlanConnections = ClientWlanConnectEvent.obtainMappedRow(clientWlanConnections);
+		var batchClientWlanMetrics = ClientWlanMetricEvent.obtainMappedRow(clientWlanMetrics);
+		var batchClientUptimeRecords = ClientUptimeRecord.obtainMappedRow(clientUptimeRecords);
+		var batchClientHourlyTraffics = ClientTrafficHourlyCount.obtainMappedRow(clientHourlyTraffics);
 
 		// summarize only when there is data
-		if (!queryClientWlanConnections.isBlank())
-			jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTableDeviceWlanConnections").formatted(queryClientWlanConnections));
-		if (!queryClientHourlyTraffics.isBlank())
-			jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTableDeviceTrafficByHour").formatted(queryClientHourlyTraffics));
-		if (!queryClientWlanMetrics.isBlank())
-			jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTableDeviceWlanMetrics").formatted(queryClientWlanMetrics));
-		if (!queryClientUptimeRecords.isBlank())
-			jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTableDeviceWlanUptime").formatted(queryClientUptimeRecords));
+		if (!batchClientWlanConnections.isEmpty()) {
+			// create temp tbl
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("createTempForUpdateFactTableDeviceWlanConnections"));
+
+			// update batch data
+			jdbcTemplate.batchUpdate(listSqlQuery.getQueryValue("insertTmpFactToTempTableUpdateFactTableDeviceWlanConnections"), batchClientWlanConnections);
+
+			// update fact table
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTableDeviceWlanConnections"));
+
+			// drop temp tbl
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("dropTempForUpdateFactTableDeviceWlanConnections"));
+		}
+
+		if (!batchClientHourlyTraffics.isEmpty()) {
+			// create temp tbl
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("createTempForUpdateFactTableDeviceTrafficByHour"));
+
+			// update batch data
+			jdbcTemplate.batchUpdate(listSqlQuery.getQueryValue("insertTmpFactToTempTableUpdateFactTableDeviceTrafficByHour"), batchClientHourlyTraffics);
+
+			// update fact table
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTableDeviceTrafficByHour"));
+
+			// drop temp tbl
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("dropTempForUpdateFactTableDeviceTrafficByHour"));
+		}
+
+		if (!batchClientWlanMetrics.isEmpty()) {
+			// create temp tbl
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("createTempForUpdateFactTableDeviceWlanMetrics"));
+
+			// update batch data
+			jdbcTemplate.batchUpdate(listSqlQuery.getQueryValue("insertTmpFactToTempTableUpdateFactTableDeviceWlanMetrics"), batchClientWlanMetrics);
+
+			// update fact table
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTableDeviceWlanMetrics"));
+
+			// drop temp tbl
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("dropTempForUpdateFactTableDeviceWlanMetrics"));
+		}
+
+		if (!batchClientUptimeRecords.isEmpty()) {
+			// create temp tbl
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("createTempForUpdateFactTableDeviceWlanUptime"));
+
+			// update batch data
+			jdbcTemplate.batchUpdate(listSqlQuery.getQueryValue("insertTmpFactToTempTableUpdateFactTableDeviceWlanUptime"), batchClientUptimeRecords);
+
+			// update fact table
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTableDeviceWlanUptime"));
+
+			// drop temp tbl
+			jdbcTemplate.execute(listSqlQuery.getQueryValue("dropTempForUpdateFactTableDeviceWlanUptime"));
+		}
 
 		log.info("end summarizing data");
 	}

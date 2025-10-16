@@ -4,6 +4,7 @@ import com.home.network.statistic.poller.rfc1213.igate.out.Rfc1213IgateIftableTr
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -43,6 +44,14 @@ public class Rfc1213IgateTrafficHourlyCount {
         }
 
         return query.toString();
+    }
+
+    public static List<Object[]> obtainMappedRow(Map<Rfc1213IgateTrafficHourlyCount, Rfc1213IgateTrafficHourlyCount> map) {
+        return map.values().stream().map(Rfc1213IgateTrafficHourlyCount::obtainMappedRow).toList();
+    }
+
+    public Object[] obtainMappedRow() {
+        return new Object[] {date, timeHourSecond, ifPhysAddress, ifDescr, inBytes + outBytes};
     }
 
     public String obtainFirstSqlQuery() {

@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -45,6 +46,14 @@ public class ApRebootWeeklyCount {
         }
 
         return res.toString();
+    }
+
+    public static List<Object[]> obtainMappedRow(Map<ApRebootWeeklyCount, ApRebootWeeklyCount> map) {
+        return map.values().stream().map(ApRebootWeeklyCount::obtainMappedRow).toList();
+    }
+
+    public Object[] obtainMappedRow() {
+        return new Object[] {week, apMac, apName, apIp, rebootCnt};
     }
 
     public String obtainFirstSqlValues() {
