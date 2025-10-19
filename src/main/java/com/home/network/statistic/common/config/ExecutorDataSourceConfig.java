@@ -46,9 +46,7 @@ public class ExecutorDataSourceConfig {
 
     @Bean("appJdbcTemplate")
     JdbcTemplate jdbcTemplate() {
-        var template = new JdbcTemplate(appDs());
-        template.setFetchSize(10_000);  // send 10000 rows max from mysql to
-        return template;
+        return new JdbcTemplate(appDs());
     }
 
     @Bean("appJpaTx")

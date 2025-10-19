@@ -4,6 +4,7 @@ import com.home.network.statistic.poller.aruba.iap.out.ArubaAiWlanTrafficEntity;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -37,6 +38,15 @@ public class ApTrafficHourlyCount {
         }
 
         return sb.toString();
+    }
+
+
+    public static List<Object[]> obtainMappedRow(Map<ApTrafficHourlyCount, ApTrafficHourlyCount> map) {
+        return map.values().stream().map(ApTrafficHourlyCount::obtainMappedRow).toList();
+    }
+
+    public Object[] obtainMappedRow() {
+        return new Object[] {apDate, apHour, apWlanMac, apWlanEssid, apWlanRxTotal + apWlanTxTotal};
     }
 
     public String obtainFirstSqlValues() {

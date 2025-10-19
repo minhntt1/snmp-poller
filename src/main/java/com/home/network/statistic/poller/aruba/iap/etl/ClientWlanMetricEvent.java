@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -35,6 +36,14 @@ public class ClientWlanMetricEvent {
         }
 
         return query.toString();
+    }
+
+    public static List<Object[]> obtainMappedRow(List<ClientWlanMetricEvent> list) {
+        return list.stream().map(ClientWlanMetricEvent::obtainMappedRow).toList();
+    }
+
+    public Object[] obtainMappedRow() {
+        return new Object[] {deviceMac, deviceName, deviceSnr, dateMetric, timeSecondMetric};
     }
 
     public String obtainFirstSqlQuery() {

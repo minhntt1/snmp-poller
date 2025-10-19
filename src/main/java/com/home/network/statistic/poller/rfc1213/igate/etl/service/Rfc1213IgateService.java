@@ -15,9 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
 
 @Service
 @Slf4j
@@ -93,10 +90,21 @@ public class Rfc1213IgateService implements BaseService {
         for (var key : copyState.keySet())
             stateMap.remove(key);
 
-        var queryUpdateDb = Rfc1213IgateTrafficHourlyCount.obtainFirstSqlQuery(mapCountState);
+        var batchUpdateDb = Rfc1213IgateTrafficHourlyCount.obtainMappedRow(mapCountState);
 
-        if (!queryUpdateDb.isBlank())
-            jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTable").formatted(queryUpdateDb));
+        if (!batchUpdateDb.isEmpty()) {
+            // create temp tbl
+            jdbcTemplate.execute(listSqlQuery.getQueryValue("createTempForFact"));
+
+            // update batch data
+            jdbcTemplate.batchUpdate(listSqlQuery.getQueryValue("insertTmpFactToTempTable"), batchUpdateDb);
+
+            // update fact table
+            jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTable"));
+
+            // drop temp tbl
+            jdbcTemplate.execute(listSqlQuery.getQueryValue("dropTempForFact"));
+        }
 
         log.info("end summarizing data");
     }

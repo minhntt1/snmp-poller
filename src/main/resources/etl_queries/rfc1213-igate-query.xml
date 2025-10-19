@@ -50,7 +50,22 @@
             )
         ]]>
     </entry>
-
+    <entry key="createTempForFact">
+        create temporary table tmp_iface_traffic_by_hour_fact (
+            `date` date,
+            `time` int,
+            `if_phys_address` bigint,
+            `if_descr` varchar(255),
+            `transmission_bytes_val` bigint
+        )
+    </entry>
+    <entry key="insertTmpFactToTempTable">
+        insert into tmp_iface_traffic_by_hour_fact
+        values (?,?,?,?,?)
+    </entry>
+    <entry key="dropTempForFact">
+        drop table tmp_iface_traffic_by_hour_fact
+    </entry>
     <entry key="updateFactTable">
         <![CDATA[
             insert into iface_traffic_by_hour_fact(date_key,time_key,iface_key,transmission_bytes) (
@@ -62,7 +77,7 @@
                 -- notice: octet = 8 bits = 1 byte
                 rits.transmission_bytes_val
 
-                from (%s) rits
+                from tmp_iface_traffic_by_hour_fact rits
 
                 join date_dim dd on dd.date_key=(
                     select date_key from

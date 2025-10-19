@@ -116,6 +116,22 @@
     </entry>
 
     <!--this step is to normalize device traffic-->
+    <entry key="createTempForUpdateFactTableDeviceTrafficByHour">
+        create temporary table tmp_device_traffic_by_hour_fact (
+            `date` date,
+            `time` int,
+            `device_mac` bigint,
+            `device_name` varchar(255),
+            `transmission_bytes_val` bigint
+        )
+    </entry>
+    <entry key="insertTmpFactToTempTableUpdateFactTableDeviceTrafficByHour">
+        insert into tmp_device_traffic_by_hour_fact
+        values (?,?,?,?,?)
+    </entry>
+    <entry key="dropTempForUpdateFactTableDeviceTrafficByHour">
+        drop table tmp_device_traffic_by_hour_fact
+    </entry>
     <entry key="updateFactTableDeviceTrafficByHour">
         <![CDATA[
             insert into network_statistics.device_traffic_by_hour_fact(date_key,time_key,device_key,transmission_bytes) (
@@ -126,7 +142,7 @@
                 dd1.device_key,
                 aidi.transmission_bytes_val
 
-                from (%s) aidi  -- PAY HIGH ATTENTION TO EMBEDDED QUERY
+                from tmp_device_traffic_by_hour_fact aidi
 
                 join date_dim dd on dd.date_key=(
                     select date_key from
@@ -150,7 +166,25 @@
 			on duplicate key update transmission_bytes=transmission_bytes+transmission_bytes_val
         ]]>
     </entry>
+
     <!--this step is to get wlan connection-->
+    <entry key="createTempForUpdateFactTableDeviceWlanConnections">
+        create temporary table tmp_device_wlan_connections_fact (
+            `device_mac` bigint,
+            `device_name` varchar(255),
+            `device_ip` int,
+            `device_wlan_mac` bigint,
+            `date_connect` date,
+            `time_connect` int
+        )
+    </entry>
+    <entry key="insertTmpFactToTempTableUpdateFactTableDeviceWlanConnections">
+        insert into tmp_device_wlan_connections_fact
+        values (?,?,?,?,?,?)
+    </entry>
+    <entry key="dropTempForUpdateFactTableDeviceWlanConnections">
+        drop table tmp_device_wlan_connections_fact
+    </entry>
     <entry key="updateFactTableDeviceWlanConnections">
         <![CDATA[
             insert ignore into device_wlan_connections_fact (
@@ -165,7 +199,7 @@
 				ifnull(vd.vendor_key,-2147483648),
 				ifnull(vd1.vendor_key,-2147483648)
 
-				from (%s) aidi  -- PAY HIGH ATTENTION TO EMBEDDED QUERY
+				from tmp_device_wlan_connections_fact aidi
 
 				join date_dim dd on dd.date_key=(
 					select date_key from
@@ -218,6 +252,23 @@
 			)
         ]]>
     </entry>
+
+    <entry key="createTempForUpdateFactTableDeviceWlanMetrics">
+        create temporary table tmp_device_wlan_metrics_fact (
+            `device_mac` bigint,
+            `device_name` varchar(255),
+            `device_snr` int,
+            `date_metric` date,
+            `time_metric` int
+        )
+    </entry>
+    <entry key="insertTmpFactToTempTableUpdateFactTableDeviceWlanMetrics">
+        insert into tmp_device_wlan_metrics_fact
+        values (?,?,?,?,?)
+    </entry>
+    <entry key="dropTempForUpdateFactTableDeviceWlanMetrics">
+        drop table tmp_device_wlan_metrics_fact
+    </entry>
     <entry key="updateFactTableDeviceWlanMetrics">
         <![CDATA[
             insert ignore into device_wlan_metrics_fact  (
@@ -228,7 +279,7 @@
 				dd1.device_key,
 				aidi.device_snr
 
-				from (%s) aidi -- PAY HIGH ATTENTION TO EMBEDDED QUERY
+				from tmp_device_wlan_metrics_fact aidi
 
 				join date_dim dd on dd.date_key=(
 					select date_key from
@@ -253,6 +304,22 @@
 			)
         ]]>
     </entry>
+
+    <entry key="createTempForUpdateFactTableDeviceWlanUptime">
+        create temporary table tmp_device_wlan_uptime_fact (
+            `device_mac` bigint,
+            `device_name` varchar(255),
+            `device_uptime_seconds` bigint,
+            `device_ip` int
+        )
+    </entry>
+    <entry key="insertTmpFactToTempTableUpdateFactTableDeviceWlanUptime">
+        insert into tmp_device_wlan_uptime_fact
+        values (?,?,?,?)
+    </entry>
+    <entry key="dropTempForUpdateFactTableDeviceWlanUptime">
+        drop table tmp_device_wlan_uptime_fact
+    </entry>
     <entry key="updateFactTableDeviceWlanUptime">
         <![CDATA[
             replace into device_wlan_uptime_fact  (
@@ -262,7 +329,7 @@
 				id.ip_key,
 				aidi.device_uptime_seconds
 
-				from (%s) aidi -- PAY HIGH ATTENTION TO EMBEDDED QUERY
+				from tmp_device_wlan_uptime_fact aidi
 
 				join device_dim dd1 on dd1.device_key=(
 					select device_key from

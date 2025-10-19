@@ -39,6 +39,14 @@ public class ClientWlanConnectEvent {
         return query.toString();
     }
 
+    public static List<Object[]> obtainMappedRow(List<ClientWlanConnectEvent> list) {
+        return list.stream().map(ClientWlanConnectEvent::obtainMappedRow).toList();
+    }
+
+    public Object[] obtainMappedRow() {
+        return new Object[] {deviceMac, deviceName, deviceIp, deviceWlanMac, dateConnect, timeSecondConnect};
+    }
+
     public String obtainFirstSqlQuery() {
         return """
                 select '%d' as `device_mac`, '%s' as `device_name`, '%d' as `device_ip`, '%d' as `device_wlan_mac`, '%s' as `date_connect`, '%d' as `time_connect`

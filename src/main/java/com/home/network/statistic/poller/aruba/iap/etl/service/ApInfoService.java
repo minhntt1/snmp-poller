@@ -112,12 +112,23 @@ public class ApInfoService implements BaseService {
             map.remove(k);
         }
 
-        // obtain ap reboot cnt update query
-        String queryUpdateRebootCnt = ApRebootWeeklyCount.obtainSqlValues(mapRebootCnt);
+        // obtain batched data
+        var batch = ApRebootWeeklyCount.obtainMappedRow(mapRebootCnt);
 
         // update to fact table
-        if (!queryUpdateRebootCnt.isBlank())
-            jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTable").formatted(queryUpdateRebootCnt));
+        if (!batch.isEmpty()) {
+            // create temp tbl
+            jdbcTemplate.execute(listSqlQuery.getQueryValue("createTempForUpdateFactTable"));
+
+            // update batch data
+            jdbcTemplate.batchUpdate(listSqlQuery.getQueryValue("insertTmpFactToTempTableUpdateFactTable"), batch);
+
+            // update fact table
+            jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTable"));
+
+            // drop temp tbl
+            jdbcTemplate.execute(listSqlQuery.getQueryValue("dropTempForUpdateFactTable"));
+        }
 
         log.info("end summarizing data");
     }

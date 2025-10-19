@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Objects;
 
 @Getter
@@ -43,6 +44,14 @@ public class ClientTrafficHourlyCount {
         }
 
         return query.toString();
+    }
+
+    public static List<Object[]> obtainMappedRow(HashMap<ClientTrafficHourlyCount, ClientTrafficHourlyCount> list) {
+        return list.values().stream().map(ClientTrafficHourlyCount::obtainMappedRow).toList();
+    }
+
+    public Object[] obtainMappedRow() {
+        return new Object[] {date, timeSecond, deviceMac, deviceName, tx + rx};
     }
 
     public String obtainFirstSqlQuery() {

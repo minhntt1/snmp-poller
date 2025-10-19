@@ -40,6 +40,14 @@ public class ClientUptimeRecord {
         return query.toString();
     }
 
+    public static List<Object[]> obtainMappedRow(HashMap<ClientUptimeRecord, ClientUptimeRecord> list) {
+        return list.values().stream().map(ClientUptimeRecord::obtainMappedRow).toList();
+    }
+
+    public Object[] obtainMappedRow() {
+        return new Object[] {deviceMac, deviceName, deviceUptimeSeconds, deviceIp};
+    }
+
     public String obtainFirstSqlQuery() {
         return """
                 select '%d' as `device_mac`, '%s' as `device_name`, '%d' as `device_uptime_seconds`, '%d' as `device_ip`

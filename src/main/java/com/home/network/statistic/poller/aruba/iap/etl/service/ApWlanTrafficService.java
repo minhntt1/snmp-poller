@@ -1,9 +1,7 @@
 package com.home.network.statistic.poller.aruba.iap.etl.service;
 
 import com.home.network.statistic.common.model.ListSqlQuery;
-import com.home.network.statistic.poller.aruba.iap.etl.ApRebootWeeklyCount;
 import com.home.network.statistic.poller.aruba.iap.etl.ApTrafficHourlyCount;
-import com.home.network.statistic.poller.aruba.iap.out.ArubaAiApInfoEntity;
 import com.home.network.statistic.poller.aruba.iap.out.ArubaAiWlanTrafficEntity;
 import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
@@ -17,8 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
-import java.util.List;
-import java.util.stream.Stream;
 
 @Service
 @Slf4j
@@ -72,7 +68,7 @@ public class ApWlanTrafficService implements BaseService {
         var copyOfMap = new HashMap<>(map);
 
         // map reboot cnt
-        var mapRebootCnt = new HashMap<ApTrafficHourlyCount, ApTrafficHourlyCount>();
+        var hourlyTrafficCount = new HashMap<ApTrafficHourlyCount, ApTrafficHourlyCount>();
 
         // stream is guaranteed to return data ordered
         try (var stream = jdbcTemplate.queryForStream(listSqlQuery.getQueryValue("getAllStaging"), new BeanPropertyRowMapper<>(ArubaAiWlanTrafficEntity.class));) {
@@ -91,7 +87,7 @@ public class ApWlanTrafficService implements BaseService {
                 // traffic sum by day, hour, wlan mac, wlan ssid
                 if (prevApState != null) {
                     var kv = new ApTrafficHourlyCount(currApState);
-                    mapRebootCnt.computeIfAbsent(kv, k -> kv).updateTraffic(prevApState, currApState);
+                    hourlyTrafficCount.computeIfAbsent(kv, k -> kv).updateTraffic(prevApState, currApState);
                 }
 
                 // update latest state to original map (must convert to json string)
@@ -107,12 +103,23 @@ public class ApWlanTrafficService implements BaseService {
             map.remove(k);
         }
 
-        // obtain ap reboot cnt update query
-        String queryUpdateRebootCnt = ApTrafficHourlyCount.obtainSqlValues(mapRebootCnt);
+        // obtain batched data
+        var batch = ApTrafficHourlyCount.obtainMappedRow(hourlyTrafficCount);
 
         // update to fact table
-        if (!queryUpdateRebootCnt.isBlank())
-            jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTable").formatted(queryUpdateRebootCnt));
+        if (!batch.isEmpty()) {
+            // create temp tbl
+            jdbcTemplate.execute(listSqlQuery.getQueryValue("createTempForUpdateFactTable"));
+
+            // update batch data
+            jdbcTemplate.batchUpdate(listSqlQuery.getQueryValue("insertTmpFactToTempTableUpdateFactTable"), batch);
+
+            // update fact table
+            jdbcTemplate.execute(listSqlQuery.getQueryValue("updateFactTable"));
+
+            // drop temp tbl
+            jdbcTemplate.execute(listSqlQuery.getQueryValue("dropTempForUpdateFactTable"));
+        }
 
         log.info("end summarizing data");
     }
