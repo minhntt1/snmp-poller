@@ -9,6 +9,7 @@ import com.home.network.statistic.poller.aruba.iap.in.job.ArubaSnmpAiPollClientI
 import com.home.network.statistic.poller.aruba.iap.in.job.ArubaSnmpAiPollWlanTrafficJob;
 import com.home.network.statistic.poller.rfc1213.igate.etl.job.Rfc1213IgateJob;
 import com.home.network.statistic.poller.rfc1213.igate.in.job.Rfc1213SnmpIgatePollingJob;
+import com.home.network.statistic.vendor.VendorJob;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.Job;
@@ -27,6 +28,7 @@ import java.util.List;
 @Profile({"dev-scheduler", "prd-scheduler"})
 @RequiredArgsConstructor
 @Slf4j
+// must wrap scheduler inside @transactional because quartz connection is not auto commit
 public class JobSchedulerServiceImpl implements JobSchedulerService {
     private final ApplicationContext ctx;
     private static final List<Class<? extends Job>> jobList = new ArrayList<>();
@@ -42,6 +44,8 @@ public class JobSchedulerServiceImpl implements JobSchedulerService {
         // rfc1213 igate
         jobList.add(Rfc1213IgateJob.class);
         jobList.add(Rfc1213SnmpIgatePollingJob.class);
+        // vendor poll job
+        jobList.add(VendorJob.class);
     }
 
     @Override
