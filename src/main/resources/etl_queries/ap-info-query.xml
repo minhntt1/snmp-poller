@@ -115,7 +115,9 @@
     </entry>
     <entry key="copyStgToArchive">
         <![CDATA[
-            insert into aruba_iap_ap_info_archive select * from aruba_iap_ap_info_stg
+            -- specify columns to skip inserting with auto increment columns
+            insert into aruba_iap_ap_info_archive(poll_time, ap_mac, ap_name, ap_ip, ap_model, ap_uptime_seconds)
+            select poll_time, ap_mac, ap_name, ap_ip, ap_model, ap_uptime_seconds from aruba_iap_ap_info_stg
         ]]>
     </entry>
 

@@ -53,53 +53,6 @@ class ClientTrafficHourlyCountTest {
     }
 
     @Test
-    void testObtainFirstSqlQuery() {
-        // Arrange
-        LocalDateTime pollTime = LocalDateTime.of(2023, 10, 2, 14, 30);
-        when(mockEntity.obtainPollDate()).thenReturn("2023-10-02");
-        when(mockEntity.obtainPollTimeHour()).thenReturn(50400);
-        when(mockEntity.getDeviceMac()).thenReturn(12345L);
-        when(mockEntity.getDeviceName()).thenReturn("Test-Device");
-
-        ClientTrafficHourlyCount count = new ClientTrafficHourlyCount(mockEntity);
-        count.setTx(1000L);
-        count.setRx(2000L);
-
-        // Act
-        String sql = count.obtainFirstSqlQuery();
-
-        // Assert
-        String expected = """
-                select '2023-10-02' as `date`, '50400' as `time`, '12345' as `device_mac`, 'Test-Device' as `device_name`, '3000' as `transmission_bytes_val`
-                """;
-        assertEquals(expected.trim(), sql.trim());
-    }
-
-    @Test
-    void testObtainSqlQuery() {
-        // Arrange
-        LocalDateTime pollTime = LocalDateTime.of(2023, 10, 2, 14, 30);
-        when(mockEntity.obtainPollDate()).thenReturn("2023-10-02");
-        when(mockEntity.obtainPollTimeHour()).thenReturn(50400);
-        when(mockEntity.getDeviceMac()).thenReturn(12345L);
-        when(mockEntity.getDeviceName()).thenReturn("Test-Device");
-
-        ClientTrafficHourlyCount count = new ClientTrafficHourlyCount(mockEntity);
-        count.setTx(1500L);
-        count.setRx(2500L);
-
-        // Act
-        String sql = count.obtainSqlQuery();
-
-        // Assert
-        String expected = """
-                union all
-                select '2023-10-02', '50400', '12345', 'Test-Device', '4000'
-                """;
-        assertEquals(expected.trim(), sql.trim());
-    }
-
-    @Test
     void testAdjustTrafficWithValidDiff() {
         // Arrange
         LocalDateTime pollTime = LocalDateTime.of(2023, 10, 2, 14, 30);
@@ -176,42 +129,6 @@ class ClientTrafficHourlyCountTest {
         // Assert
         assertEquals(2500L, count.getTx()); // 1000 + 1500
         assertEquals(1300L, count.getRx()); // 500 + 800
-    }
-
-    @Test
-    void testObtainSqlQueryStatic() {
-        // Arrange
-        LocalDateTime pollTime1 = LocalDateTime.of(2023, 10, 2, 14, 30);
-        ArubaAiClientInfoEntity entity1 = createEntity(pollTime1, 12345L, "Device-1");
-        ClientTrafficHourlyCount count1 = new ClientTrafficHourlyCount(entity1);
-        count1.setTx(1000L);
-        count1.setRx(2000L);
-
-        LocalDateTime pollTime2 = LocalDateTime.of(2023, 10, 2, 15, 30);
-        ArubaAiClientInfoEntity entity2 = createEntity(pollTime2, 67890L, "Device-2");
-        ClientTrafficHourlyCount count2 = new ClientTrafficHourlyCount(entity2);
-        count2.setTx(1500L);
-        count2.setRx(2500L);
-
-        HashMap<ClientTrafficHourlyCount, ClientTrafficHourlyCount> map = new LinkedHashMap<>();
-        map.put(count1, count1);
-        map.put(count2, count2);
-
-        // Act
-        String sql = ClientTrafficHourlyCount.obtainSqlQuery(map);
-
-        // Assert
-        String expected1 = """
-                select '2023-10-02' as `date`, '50400' as `time`, '12345' as `device_mac`, 'Device-1' as `device_name`, '3000' as `transmission_bytes_val`
-                """.trim();
-        String expected2 = """
-                union all
-                select '2023-10-02', '54000', '67890', 'Device-2', '4000'
-                """.trim();
-
-        String result = sql.trim();
-        assertTrue(result.contains(expected1));
-        assertTrue(result.contains(expected2));
     }
 
     @Test
@@ -334,40 +251,6 @@ class ClientTrafficHourlyCountTest {
 
         // Hash code should remain the same as it doesn't depend on tx/rx values
         assertEquals(initialHashCode, count.hashCode());
-    }
-
-    @Test
-    void testEmptyMapInStaticSqlQuery() {
-        // Arrange
-        HashMap<ClientTrafficHourlyCount, ClientTrafficHourlyCount> emptyMap = new LinkedHashMap<>();
-
-        // Act
-        String sql = ClientTrafficHourlyCount.obtainSqlQuery(emptyMap);
-
-        // Assert
-        assertEquals("", sql);
-    }
-
-    @Test
-    void testSingleEntryInStaticSqlQuery() {
-        // Arrange
-        LocalDateTime pollTime = LocalDateTime.of(2023, 10, 2, 14, 30);
-        ArubaAiClientInfoEntity entity = createEntity(pollTime, 12345L, "Test-Device");
-        ClientTrafficHourlyCount count = new ClientTrafficHourlyCount(entity);
-        count.setTx(1000L);
-        count.setRx(2000L);
-
-        HashMap<ClientTrafficHourlyCount, ClientTrafficHourlyCount> map = new LinkedHashMap<>();
-        map.put(count, count);
-
-        // Act
-        String sql = ClientTrafficHourlyCount.obtainSqlQuery(map);
-
-        // Assert
-        String expected = """
-                select '2023-10-02' as `date`, '50400' as `time`, '12345' as `device_mac`, 'Test-Device' as `device_name`, '3000' as `transmission_bytes_val`
-                """.trim();
-        assertEquals(expected, sql.trim());
     }
 
     // Helper method to create ArubaAiClientInfoEntity for testing

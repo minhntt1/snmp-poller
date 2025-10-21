@@ -33,38 +33,12 @@ public class ClientTrafficHourlyCount {
         this.rx += old.calcDiffRxOldNew(nEW);
     }
 
-    public static String obtainSqlQuery(HashMap<ClientTrafficHourlyCount, ClientTrafficHourlyCount> list) {
-        var query = new StringBuilder();
-
-        for (var val : list.values()) {
-            if (val == null) continue;
-
-            if (query.isEmpty()) query.append(val.obtainFirstSqlQuery());
-            else query.append(val.obtainSqlQuery());
-        }
-
-        return query.toString();
-    }
-
     public static List<Object[]> obtainMappedRow(HashMap<ClientTrafficHourlyCount, ClientTrafficHourlyCount> list) {
         return list.values().stream().map(ClientTrafficHourlyCount::obtainMappedRow).toList();
     }
 
     public Object[] obtainMappedRow() {
         return new Object[] {date, timeSecond, deviceMac, deviceName, tx + rx};
-    }
-
-    public String obtainFirstSqlQuery() {
-        return """
-                select '%s' as `date`, '%d' as `time`, '%d' as `device_mac`, '%s' as `device_name`, '%d' as `transmission_bytes_val`
-                """.formatted(this.date, this.timeSecond, this.deviceMac, this.deviceName, this.tx+this.rx);
-    }
-
-    public String obtainSqlQuery() {
-        return """
-                union all
-                select '%s', '%d', '%d', '%s', '%d'
-                """.formatted(this.date, this.timeSecond, this.deviceMac, this.deviceName, this.tx+this.rx);
     }
 
     @Override

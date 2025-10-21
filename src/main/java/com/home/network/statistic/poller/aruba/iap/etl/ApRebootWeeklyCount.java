@@ -35,45 +35,12 @@ public class ApRebootWeeklyCount {
         this.rebootCnt += old.checkUptimeGreater(nEW);
     }
 
-    public static String obtainSqlValues(Map<ApRebootWeeklyCount, ApRebootWeeklyCount> map) {
-        var res = new StringBuilder();
-
-        for (var apRebootValue : map.values()) {
-            if (apRebootValue == null) continue;
-
-            if (res.isEmpty()) res.append(apRebootValue.obtainFirstSqlValues());
-            else res.append(apRebootValue.obtainSqlValues());
-        }
-
-        return res.toString();
-    }
-
     public static List<Object[]> obtainMappedRow(Map<ApRebootWeeklyCount, ApRebootWeeklyCount> map) {
         return map.values().stream().map(ApRebootWeeklyCount::obtainMappedRow).toList();
     }
 
     public Object[] obtainMappedRow() {
         return new Object[] {week, apMac, apName, apIp, rebootCnt};
-    }
-
-    public String obtainFirstSqlValues() {
-        return """
-                select
-                '%s' as `ap_week`, '%d' as `ap_mac`, '%s' as `ap_name`, '%d' as `ap_ip`, '%d' as `reboot_cnt`
-                """.formatted(this.week, this.apMac, this.apName, this.apIp, this.rebootCnt);
-    }
-
-    public String obtainSqlValues() {
-        // sql value ordering:
-        // 1st -- ap week
-        // 2nd -- ap mac
-        // 3rd -- ap name
-        // 4th -- ap ip
-        // 5th -- reboot cnt
-        return """
-                union all
-                select '%s', '%d', '%s', '%d', '%d'
-                """.formatted(this.week, this.apMac, this.apName, this.apIp, this.rebootCnt);
     }
 
     @Override

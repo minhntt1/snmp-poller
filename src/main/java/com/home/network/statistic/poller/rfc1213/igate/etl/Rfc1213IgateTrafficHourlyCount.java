@@ -33,38 +33,12 @@ public class Rfc1213IgateTrafficHourlyCount {
         this.outBytes += old.calcDiffTxOldNew(nEW);
     }
 
-    public static String obtainFirstSqlQuery(Map<Rfc1213IgateTrafficHourlyCount, Rfc1213IgateTrafficHourlyCount> map) {
-        var query = new StringBuilder();
-
-        for (var val : map.keySet()) {
-            if (val == null) continue;
-
-            if (query.isEmpty()) query.append(val.obtainFirstSqlQuery());
-            else query.append(val.obtainSqlQuery());
-        }
-
-        return query.toString();
-    }
-
     public static List<Object[]> obtainMappedRow(Map<Rfc1213IgateTrafficHourlyCount, Rfc1213IgateTrafficHourlyCount> map) {
         return map.values().stream().map(Rfc1213IgateTrafficHourlyCount::obtainMappedRow).toList();
     }
 
     public Object[] obtainMappedRow() {
         return new Object[] {date, timeHourSecond, ifPhysAddress, ifDescr, inBytes + outBytes};
-    }
-
-    public String obtainFirstSqlQuery() {
-        return """
-                select '%s' as `date`, '%d' as `time`, '%d' as `if_phys_address`, '%s' as `if_descr`, '%d' as `transmission_bytes_val`
-                """.formatted(this.date, this.timeHourSecond, this.ifPhysAddress, this.ifDescr, this.inBytes+this.outBytes);
-    }
-
-    public String obtainSqlQuery() {
-        return """
-                union all
-                select '%s', '%d', '%d', '%s', '%d'
-                """.formatted(this.date, this.timeHourSecond, this.ifPhysAddress, this.ifDescr, this.inBytes+this.outBytes);
     }
 
     @Override

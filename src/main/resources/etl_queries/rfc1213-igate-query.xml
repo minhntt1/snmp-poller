@@ -111,7 +111,8 @@
 
     <entry key="copyStgToArchive">
         <![CDATA[
-            insert into rfc1213_iftable_traffic_archive select * from rfc1213_iftable_traffic_stg
+            insert into rfc1213_iftable_traffic_archive(poll_time, if_index, if_descr, if_phys_address, if_admin_status, if_oper_status, if_in_octets, if_out_octets, ip_ad_ent_addr)
+            select poll_time, if_index, if_descr, if_phys_address, if_admin_status, if_oper_status, if_in_octets, if_out_octets, ip_ad_ent_addr from rfc1213_iftable_traffic_stg
         ]]>
     </entry>
 

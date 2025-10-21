@@ -27,19 +27,6 @@ public class ApTrafficHourlyCount {
         this.apWlanTxTotal = 0;
     }
 
-    public static String obtainSqlValues(Map<ApTrafficHourlyCount, ApTrafficHourlyCount> map) {
-        var sb = new StringBuilder();
-
-        for (var v : map.values()) {
-            if (v == null) continue;
-
-            if (sb.isEmpty()) sb.append(v.obtainFirstSqlValues());
-            else sb.append(v.obtainSqlValues());
-        }
-
-        return sb.toString();
-    }
-
 
     public static List<Object[]> obtainMappedRow(Map<ApTrafficHourlyCount, ApTrafficHourlyCount> map) {
         return map.values().stream().map(ApTrafficHourlyCount::obtainMappedRow).toList();
@@ -48,21 +35,6 @@ public class ApTrafficHourlyCount {
     public Object[] obtainMappedRow() {
         return new Object[] {apDate, apHour, apWlanMac, apWlanEssid, apWlanRxTotal + apWlanTxTotal};
     }
-
-    public String obtainFirstSqlValues() {
-        return """
-                select
-                '%s' as `date`, '%d' as `hour`, '%d' as `wlan_mac`, '%s' as `wlan_essid`, '%d' as `transmission_bytes_val`
-                """.formatted(this.apDate, this.apHour, this.apWlanMac, this.apWlanEssid, this.apWlanTxTotal + this.apWlanRxTotal);
-    }
-
-    public String obtainSqlValues() {
-        return """
-                union all
-                select '%s', '%d', '%d', '%s', '%d'
-                """.formatted(this.apDate, this.apHour, this.apWlanMac, this.apWlanEssid, this.apWlanTxTotal + this.apWlanRxTotal);
-    }
-
 
     public void updateTraffic(ArubaAiWlanTrafficEntity old, ArubaAiWlanTrafficEntity nEW) {
         // always subtract prev state (because it is accumulated)
