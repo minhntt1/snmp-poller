@@ -20,9 +20,11 @@ import java.util.Properties;
 @Configuration
 @Profile({"dev-executor","prd-executor"})
 @EnableJpaRepositories(
-        basePackages = {"com.home.network.statistic.poller.aruba.iap.out",
-        "com.home.network.statistic.poller.rfc1213.igate.out",
-        "com.home.network.statistic.vendor"},
+        basePackages = {
+            "com.home.network.statistic.poller.aruba.iap.out",
+            "com.home.network.statistic.poller.rfc1213.igate.out",
+            "com.home.network.statistic.vendor"
+        },
         entityManagerFactoryRef = "appEm",
         transactionManagerRef = "appJpaTx"
 )

@@ -5,7 +5,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Table(name = "vendor_dim")
 @Entity
@@ -30,7 +34,12 @@ public class VendorEntity {
         this.vendorName = vendorName;
     }
 
-    public boolean diffName(VendorEntity other) {
-        return !this.vendorName.equals(other.vendorName);
+    public void updateName(VendorEntity other) {
+        if (!this.vendorName.equals(other.vendorName))
+            this.vendorName = other.vendorName;
+    }
+
+    public static Map<Integer, VendorEntity> toMap(List<VendorEntity> list) {
+        return list.stream().collect(Collectors.toMap(VendorEntity::getVendorPrefix, Function.identity()));
     }
 }

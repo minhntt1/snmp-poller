@@ -1,5 +1,6 @@
 package com.home.network.statistic.vendor;
 
+import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
@@ -8,25 +9,25 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @Profile({"dev-executor","prd-executor"})
 public class VendorService {
-    private final String lookupUrl = "https://standards-oui.ieee.org/";
+    private static final String lookupUrl = "https://standards-oui.ieee.org/";
     private final RestClient restClient;
     private final VendorRepository vendorRepository;
 
-//    @Scheduled(fixedRate = 1, timeUnit = TimeUnit.DAYS)
-    @Transactional(value = "appTx")
+    // use jpa tx instead of jdbc tx
+    @Transactional(value = "appJpaTx")
+    @Timed(value = "macvendor.poll")
     public void run() {
         log.info("fetch vendors from remote url");
 
         String response = restClient
                 .get()
-                .uri(this.lookupUrl)
+                .uri(lookupUrl)
                 .retrieve()
                 .body(String.class);
 
@@ -34,19 +35,28 @@ public class VendorService {
 
         VendorDTO vendorDTO = new VendorDTO(response);
 
-        List<VendorEntity> vendorEntityList = vendorDTO.extract();
+        // extract vendor entity from response
+        // use map for better lookup
+        List<VendorEntity> vendorListAPI = vendorDTO.extract();
 
         log.info("save vendors to database");
 
-        for (VendorEntity vendorEntity : vendorEntityList) {
-            Optional<VendorEntity> vendorEntity1 = vendorRepository
-                    .findFirstByVendorPrefix(vendorEntity.getVendorPrefix());
+        // find all entity in db
+        var vendorListDb = VendorEntity.toMap(vendorRepository.findAll());
 
-            if (vendorEntity1.isPresent() && vendorEntity1.get().diffName(vendorEntity)) {
-                vendorEntity1.get().setVendorName(vendorEntity.getVendorName());// update latest
-            } else if (vendorEntity1.isEmpty()) {
-                vendorRepository.save(vendorEntity);
+        // loop over all data in API
+        for (var vendor : vendorListAPI) {
+            // get corresponding db record
+            var vendorDb = vendorListDb.get(vendor.getVendorPrefix());
+
+            // if no db record, save current to DB
+            if (vendorDb == null) {
+                vendorRepository.save(vendor);
+                continue;
             }
+
+            // otherwise, check if two have diffrent name, if yes, update db name
+            vendorDb.updateName(vendor);
         }
 
         log.info("save vendors to database finished");
