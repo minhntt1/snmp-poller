@@ -27,38 +27,12 @@ public class ClientUptimeRecord {
         this.deviceUptimeSeconds = o.getDeviceUptimeSeconds();
     }
 
-    public static String obtainSqlQuery(HashMap<ClientUptimeRecord, ClientUptimeRecord> list) {
-        var query = new StringBuilder();
-
-        for (var val : list.values()) {
-            if (val == null) continue;
-
-            if (query.isEmpty()) query.append(val.obtainFirstSqlQuery());
-            else query.append(val.obtainSqlQuery());
-        }
-
-        return query.toString();
-    }
-
     public static List<Object[]> obtainMappedRow(HashMap<ClientUptimeRecord, ClientUptimeRecord> list) {
         return list.values().stream().map(ClientUptimeRecord::obtainMappedRow).toList();
     }
 
     public Object[] obtainMappedRow() {
         return new Object[] {deviceMac, deviceName, deviceUptimeSeconds, deviceIp};
-    }
-
-    public String obtainFirstSqlQuery() {
-        return """
-                select '%d' as `device_mac`, '%s' as `device_name`, '%d' as `device_uptime_seconds`, '%d' as `device_ip`
-                """.formatted(this.deviceMac, this.deviceName, this.deviceUptimeSeconds, this.deviceIp);
-    }
-
-    public String obtainSqlQuery() {
-        return """
-                union all
-                select '%d', '%s', '%d', '%d'
-                """.formatted(this.deviceMac, this.deviceName, this.deviceUptimeSeconds, this.deviceIp);
     }
 
     @Override

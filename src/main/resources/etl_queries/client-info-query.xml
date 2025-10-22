@@ -355,7 +355,8 @@
     </entry>
     <entry key="copyStgToArchive">
         <![CDATA[
-            insert into aruba_iap_device_info_archive select * from aruba_iap_device_info_stg
+            insert into aruba_iap_device_info_archive(poll_time, device_mac, device_wlan_mac, device_ip, device_ap_ip, device_name, device_rx, device_tx, device_snr, device_uptime_seconds)
+            select poll_time, device_mac, device_wlan_mac, device_ip, device_ap_ip, device_name, device_rx, device_tx, device_snr, device_uptime_seconds from aruba_iap_device_info_stg
         ]]>
     </entry>
 

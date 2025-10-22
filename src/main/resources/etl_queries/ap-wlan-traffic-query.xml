@@ -124,7 +124,8 @@
     </entry>
     <entry key="copyStgToArchive">
         <![CDATA[
-            insert into aruba_iap_wlan_traffic_archive select * from aruba_iap_wlan_traffic_stg
+            insert into aruba_iap_wlan_traffic_archive(poll_time, wlan_ap_mac, wlan_essid, wlan_mac, wlan_rx, wlan_tx)
+            select poll_time, wlan_ap_mac, wlan_essid, wlan_mac, wlan_rx, wlan_tx from aruba_iap_wlan_traffic_stg
         ]]>
     </entry>
 
