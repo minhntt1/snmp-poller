@@ -20,4 +20,8 @@ Run executor  from java command line
 java '-Dspring.profiles.active=dev-executor' -jar ./build/libs/network-statistic-0.0.1-SNAPSHOT.jar
 ```
 
-# Run on server (dev profile)
+# Run on local
+Run dev scheduler from java cmd
+```
+java '-Dspring.profiles.active=dev-scheduler' -jar ./build/libs/network-statistic-0.0.1-SNAPSHOT.jar
+```
