@@ -35,7 +35,7 @@ class ClientWlanConnectEventTest {
         when(mockEntity.obtainConnectTime()).thenReturn(50400);
 
         // Act
-        ClientWlanConnectEvent event = new ClientWlanConnectEvent(mockEntity);
+        ClientWlanConnectEvent event = new ClientWlanConnectEvent(mockEntity, true);
 
         // Assert
         assertEquals(12345L, event.getDeviceMac());
@@ -44,6 +44,7 @@ class ClientWlanConnectEventTest {
         assertEquals(67890L, event.getDeviceWlanMac());
         assertEquals("2023-10-02", event.getDateConnect());
         assertEquals(50400, event.getTimeSecondConnect());
+        assertEquals(1, event.getConnectStatus()); // Connect status should be 1 for connect event
     }
 
     @Test
@@ -57,7 +58,7 @@ class ClientWlanConnectEventTest {
         when(mockEntity.obtainConnectTime()).thenReturn(50400);
 
         // Act
-        ClientWlanConnectEvent event = new ClientWlanConnectEvent(mockEntity);
+        ClientWlanConnectEvent event = new ClientWlanConnectEvent(mockEntity, true);
 
         // Assert
         assertEquals("", event.getDeviceName()); // Should default to empty string
@@ -74,10 +75,33 @@ class ClientWlanConnectEventTest {
         when(mockEntity.obtainConnectTime()).thenReturn(50400);
 
         // Act
-        ClientWlanConnectEvent event = new ClientWlanConnectEvent(mockEntity);
+        ClientWlanConnectEvent event = new ClientWlanConnectEvent(mockEntity, true);
 
         // Assert
         assertEquals(Long.MIN_VALUE, event.getDeviceWlanMac()); // Should default to Long.MIN_VALUE
+    }
+
+    @Test
+    void testConstructorWithDisconnectEvent() {
+        // Arrange
+        when(mockEntity.getDeviceMac()).thenReturn(12345L);
+        when(mockEntity.getDeviceName()).thenReturn("Test-Device");
+        when(mockEntity.getDeviceIp()).thenReturn(1921681001);
+        when(mockEntity.getDeviceWlanMac()).thenReturn(67890L);
+        // For disconnect, date and time are not obtained from entity
+
+        // Act
+        ClientWlanConnectEvent event = new ClientWlanConnectEvent(mockEntity, false);
+
+        // Assert
+        assertEquals(12345L, event.getDeviceMac());
+        assertEquals("Test-Device", event.getDeviceName());
+        assertEquals(1921681001, event.getDeviceIp());
+        assertEquals(67890L, event.getDeviceWlanMac());
+        assertEquals(2, event.getConnectStatus()); // Connect status should be 2 for disconnect event
+        assertNotNull(event.getDateConnect()); // Date should be set to current UTC date
+        assertNotNull(event.getTimeSecondConnect()); // Time should be set to current UTC time
+        assertTrue(event.getTimeSecondConnect() >= 0 && event.getTimeSecondConnect() < 86400); // Valid second of day
     }
 
     @Test
@@ -90,7 +114,7 @@ class ClientWlanConnectEventTest {
         when(mockEntity.obtainConnectDate()).thenReturn("2023-10-02");
         when(mockEntity.obtainConnectTime()).thenReturn(50400);
 
-        ClientWlanConnectEvent event = new ClientWlanConnectEvent(mockEntity);
+        ClientWlanConnectEvent event = new ClientWlanConnectEvent(mockEntity, true);
 
         // Act & Assert - Test getters
         assertEquals(12345L, event.getDeviceMac());
@@ -99,6 +123,7 @@ class ClientWlanConnectEventTest {
         assertEquals(67890L, event.getDeviceWlanMac());
         assertEquals("2023-10-02", event.getDateConnect());
         assertEquals(50400, event.getTimeSecondConnect());
+        assertEquals(1, event.getConnectStatus());
     }
 
     @Test
@@ -108,9 +133,9 @@ class ClientWlanConnectEventTest {
         ArubaAiClientInfoEntity entity2 = createEntity(12345L, "Device-1", 1921681001, 67890L, "2023-10-02", 50400);
         ArubaAiClientInfoEntity entity3 = createEntity(67890L, "Device-2", 1921681002, 12345L, "2023-10-03", 54000);
 
-        ClientWlanConnectEvent event1 = new ClientWlanConnectEvent(entity1);
-        ClientWlanConnectEvent event2 = new ClientWlanConnectEvent(entity2);
-        ClientWlanConnectEvent event3 = new ClientWlanConnectEvent(entity3);
+        ClientWlanConnectEvent event1 = new ClientWlanConnectEvent(entity1, true);
+        ClientWlanConnectEvent event2 = new ClientWlanConnectEvent(entity2, true);
+        ClientWlanConnectEvent event3 = new ClientWlanConnectEvent(entity3, true);
 
         // Act & Assert
         // Test that objects with same field values have same field values
@@ -130,7 +155,7 @@ class ClientWlanConnectEventTest {
     void testEqualsWithNull() {
         // Arrange
         ArubaAiClientInfoEntity entity = createEntity(12345L, "Device-1", 1921681001, 67890L, "2023-10-02", 50400);
-        ClientWlanConnectEvent event = new ClientWlanConnectEvent(entity);
+        ClientWlanConnectEvent event = new ClientWlanConnectEvent(entity, true);
 
         // Act & Assert
         assertNotEquals(event, null);
@@ -141,7 +166,7 @@ class ClientWlanConnectEventTest {
     void testHashCodeConsistency() {
         // Arrange
         ArubaAiClientInfoEntity entity = createEntity(12345L, "Device-1", 1921681001, 67890L, "2023-10-02", 50400);
-        ClientWlanConnectEvent event = new ClientWlanConnectEvent(entity);
+        ClientWlanConnectEvent event = new ClientWlanConnectEvent(entity, true);
 
         // Act & Assert
         int initialHashCode = event.hashCode();
