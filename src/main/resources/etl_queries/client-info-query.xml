@@ -175,12 +175,13 @@
             `device_ip` int,
             `device_wlan_mac` bigint,
             `date_connect` date,
-            `time_connect` int
+            `time_connect` int,
+            `connect_status` int
         )
     </entry>
     <entry key="insertTmpFactToTempTableUpdateFactTableDeviceWlanConnections">
         insert into tmp_device_wlan_connections_fact
-        values (?,?,?,?,?,?)
+        values (?,?,?,?,?,?,?)
     </entry>
     <entry key="dropTempForUpdateFactTableDeviceWlanConnections">
         drop table tmp_device_wlan_connections_fact
@@ -197,7 +198,8 @@
 				ad.ap_key,
 				gid.iface_key,
 				ifnull(vd.vendor_key,-2147483648),
-				ifnull(vd1.vendor_key,-2147483648)
+				ifnull(vd1.vendor_key,-2147483648),
+				aidi.connect_status
 
 				from tmp_device_wlan_connections_fact aidi
 

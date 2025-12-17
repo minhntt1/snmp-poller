@@ -120,11 +120,11 @@ public class ClientInfoService implements BaseService {
 					var deviceHourlyTraffic = new ClientTrafficHourlyCount(currState);
 
 					if (prevState.checkReconnect(currState))
-						clientWlanConnections.add(new ClientWlanConnectEvent(currState));
+						clientWlanConnections.add(new ClientWlanConnectEvent(currState, true));
 
 					clientHourlyTraffics.computeIfAbsent(deviceHourlyTraffic, kk -> deviceHourlyTraffic).adjustTraffic(prevState, currState);
 				} else {	// if device appear first time, no prev state
-					clientWlanConnections.add(new ClientWlanConnectEvent(currState));
+					clientWlanConnections.add(new ClientWlanConnectEvent(currState, true));
 				}
 
 				// update state
@@ -137,7 +137,15 @@ public class ClientInfoService implements BaseService {
 
 		// free up state storage: removing devices dont appear in current batch (its state will highly likely not usable, because its state is not continuos)
 		for (var key : copyDeviceStateMap.keySet()) {
-			deviceStateMap.remove(key);
+			Object oldState = deviceStateMap.remove(key);
+
+			if (oldState != null) {
+				var oldStateO = ArubaAiClientInfoEntity.from(oldState.toString());
+				// add disconnect events when there is no data in snmp result
+				// but what if the batch size is too big (ex: get multpiple time from snmp but doesn't process right after data is fetch, in other words, data ingested size is big)
+				// in that case, there will be no disconnect event detected, because it designed to work when integrating with snmp fetch state each time
+				clientWlanConnections.add(new ClientWlanConnectEvent(oldStateO, false));
+			}
 		}
 
 		var batchClientWlanConnections = ClientWlanConnectEvent.obtainMappedRow(clientWlanConnections);
