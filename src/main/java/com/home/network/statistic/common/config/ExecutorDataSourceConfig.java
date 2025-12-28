@@ -23,6 +23,7 @@ import java.util.Properties;
         basePackages = {
             "com.home.network.statistic.poller.aruba.iap.out",
             "com.home.network.statistic.poller.rfc1213.igate.out",
+            "com.home.network.statistic.poller.igate.gw240.out",
             "com.home.network.statistic.vendor"
         },
         entityManagerFactoryRef = "appEm",
@@ -66,7 +67,8 @@ public class ExecutorDataSourceConfig {
         conf.setPackagesToScan(
                 "com.home.network.statistic.poller.aruba.iap.out",
                 "com.home.network.statistic.poller.rfc1213.igate.out",
-                "com.home.network.statistic.vendor");
+                "com.home.network.statistic.vendor",
+                "com.home.network.statistic.poller.igate.gw240.out");
         return conf;
     }
 }
