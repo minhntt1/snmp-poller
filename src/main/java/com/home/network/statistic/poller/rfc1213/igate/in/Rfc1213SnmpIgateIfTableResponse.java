@@ -1,5 +1,6 @@
 package com.home.network.statistic.poller.rfc1213.igate.in;
 
+import com.home.network.statistic.poller.igate.gw240.out.SnmpIfTablePhyInfoResponseRaw;
 import com.home.network.statistic.poller.rfc1213.igate.out.Rfc1213IgateIftableTrafficEntity;
 import com.home.network.statistic.poller.util.VariableBindingUtil;
 import lombok.Getter;
@@ -27,6 +28,7 @@ enum IfStatus {
     }
 }
 
+@Getter
 public class Rfc1213SnmpIgateIfTableResponse extends Rfc1213SnmpIgateResponse {
     private Integer ifIndex;
     private String ifDescr;
@@ -57,6 +59,13 @@ public class Rfc1213SnmpIgateIfTableResponse extends Rfc1213SnmpIgateResponse {
             else if (Rfc1213SnmpIgateIfTableRequest.isOidIfOutOctets(oid))
                 this.ifOutOctets = VariableBindingUtil.parseRxTx(variableBinding);
         }
+    }
+
+    public SnmpIfTablePhyInfoResponseRaw toSnmpIfTablePhyInfoResponseRaw() {
+        return SnmpIfTablePhyInfoResponseRaw.builder()
+                .snmpIfDescr(ifDescr)
+                .snmpIfPhysAddress(ifPhysAddress)
+                .build();
     }
 
     public Rfc1213IgateIftableTrafficEntity toRfc1213IgateIftableTrafficEntity(

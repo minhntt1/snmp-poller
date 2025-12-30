@@ -20,6 +20,7 @@ import java.util.List;
 public class Rfc1213SnmpIgatePollingService {
     private final Snmp snmp;
     private final Rfc1213IgateIftableTrafficEntityRepo rfc1213IgateIftableTrafficEntityRepo;
+    //todo: implement way to securely store credentials
     private final List<Rfc1213SnmpIgateTarget> rfc1213SnmpIgateTargets = List.of(
         new Rfc1213SnmpIgateTarget("udp:192.168.100.1/161")
     );
