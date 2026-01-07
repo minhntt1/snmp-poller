@@ -131,9 +131,9 @@
     <entry key="moveStgToIngest">
         <![CDATA[
             rename table
-            rfc1213_iftable_traffic_stg to tmp,
+            rfc1213_iftable_traffic_stg to tmp_rfc1213_iftable_traffic_stg,
             rfc1213_iftable_traffic_stg_ingest to rfc1213_iftable_traffic_stg,
-            tmp to rfc1213_iftable_traffic_stg_ingest
+            tmp_rfc1213_iftable_traffic_stg to rfc1213_iftable_traffic_stg_ingest
         ]]>
     </entry>
 </properties>

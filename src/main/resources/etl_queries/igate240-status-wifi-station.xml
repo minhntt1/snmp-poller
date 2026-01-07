@@ -220,9 +220,9 @@
     <entry key="moveStgToIngest">
         <![CDATA[
             rename table
-            igate_gw240_status_wifi_station_stg to tmp,
+            igate_gw240_status_wifi_station_stg to tmp_igate_gw240_status_wifi_station_stg,
             igate_gw240_status_wifi_station_stg_ingest to igate_gw240_status_wifi_station_stg,
-            tmp to igate_gw240_status_wifi_station_stg_ingest
+            tmp_igate_gw240_status_wifi_station_stg to igate_gw240_status_wifi_station_stg_ingest
         ]]>
     </entry>
 </properties>

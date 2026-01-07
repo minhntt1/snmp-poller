@@ -136,9 +136,9 @@
     <entry key="moveStgToIngest">
         <![CDATA[
             rename table
-            aruba_iap_ap_info_stg to tmp,
+            aruba_iap_ap_info_stg to tmp_aruba_iap_ap_info_stg,
             aruba_iap_ap_info_stg_ingest to aruba_iap_ap_info_stg,
-            tmp to aruba_iap_ap_info_stg_ingest
+            tmp_aruba_iap_ap_info_stg to aruba_iap_ap_info_stg_ingest
         ]]>
     </entry>
 </properties>

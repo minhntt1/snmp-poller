@@ -144,9 +144,9 @@
     <entry key="moveStgToIngest">
         <![CDATA[
             rename table
-            aruba_iap_wlan_traffic_stg to tmp,
+            aruba_iap_wlan_traffic_stg to tmp_aruba_iap_wlan_traffic_stg,
             aruba_iap_wlan_traffic_stg_ingest to aruba_iap_wlan_traffic_stg,
-            tmp to aruba_iap_wlan_traffic_stg_ingest
+            tmp_aruba_iap_wlan_traffic_stg to aruba_iap_wlan_traffic_stg_ingest
         ]]>
     </entry>
 </properties>
