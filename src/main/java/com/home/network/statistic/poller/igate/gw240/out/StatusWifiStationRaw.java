@@ -31,9 +31,10 @@ public class StatusWifiStationRaw {
     }
 
     public List<String> parseWebResponseToList() {
-        var split = webResponse.split("<[^>]*>");
-        // remove blank string from tag
-        return Arrays.stream(split).filter(s -> !s.isBlank()).toList();
+        // append dummy tag in response to assure even array index after parsed
+        var split = "<dummy>".concat(webResponse).strip().split("<[^>]*>");
+        // map array to list
+        return Arrays.stream(split).toList();
     }
 
     // create key containing device mac + mac iface
@@ -42,14 +43,19 @@ public class StatusWifiStationRaw {
         var listClients = parseWebResponseToList();
         var devices = new ArrayList<StatusWifiStationWebDataRaw>();
 
-        for (int i = 0; i < listClients.size(); i += 6) {
-            var idx = listClients.get(i);
-            var clientMac = listClients.get(i + 1);
-            var clientAuth = listClients.get(i + 2);
-            var clientAuthMethod = listClients.get(i + 3);
-            var webIfDescr = listClients.get(i + 5);
-            var webWlanName = listClients.get(i + 4);
+        for (int i = 0; i < listClients.size(); i += 25) {    // 25 is max size to skip array to expect next client
+            var idx = listClients.get(i + 4);
+            var clientMac = listClients.get(i + 8);
+            var clientAuth = listClients.get(i + 12);
+            var clientAuthMethod = listClients.get(i + 16);
+            var webWlanName = listClients.get(i + 20);
+            var webIfDescr = listClients.get(i + 24);
             Long snmpPhysAddr = null;
+
+            if (clientMac.isBlank() || webIfDescr.isBlank() || webWlanName.isBlank() || listRaw == null || pollTime == null) {
+                // if mandatory fields missing
+                continue;
+            }
 
             for (var snmpData : listRaw)
                 if (snmpData.getSnmpIfDescr().equals(webIfDescr)) {

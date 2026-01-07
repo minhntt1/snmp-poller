@@ -24,7 +24,7 @@ public class ClientWlanConnectEvent {
     public ClientWlanConnectEvent(StatusWifiStationWebDataRaw webDataRaw) {
         this.deviceMac = webDataRaw.toWClientMacLong();
         this.deviceWlanMac = webDataRaw.getSnmpPhysAddr();
-        this.deviceWlanName = webDataRaw.getWWlanESSID();
+        this.deviceWlanName = webDataRaw.toWWlanESSIDHtmlDecode();
         this.deviceWlanPhyName = webDataRaw.getWPhyName();
         this.dateConnect = webDataRaw.getPollDateTime().toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
         this.timeSecondConnect = webDataRaw.getPollDateTime().toLocalTime().toSecondOfDay();
@@ -34,7 +34,7 @@ public class ClientWlanConnectEvent {
     public ClientWlanConnectEvent(StatusWifiStationWebDataRaw webDataRaw, LocalDateTime batchTimeNoData) {
         this.deviceMac = webDataRaw.toWClientMacLong();
         this.deviceWlanMac = webDataRaw.getSnmpPhysAddr();
-        this.deviceWlanName = webDataRaw.getWWlanESSID();
+        this.deviceWlanName = webDataRaw.toWWlanESSIDHtmlDecode();
         this.deviceWlanPhyName = webDataRaw.getWPhyName();
         this.dateConnect = batchTimeNoData.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
         this.timeSecondConnect = batchTimeNoData.toLocalTime().toSecondOfDay();

@@ -3,8 +3,8 @@
 <properties>
     <entry key="addUndefinedIpDim">
         <![CDATA[
-            insert ignore into ip_dim (ip_key) values(
-                0
+            insert ignore into ip_dim (ip_key, ipv4, ipv6) values(
+                -2147483648, 0, 0
             );
         ]]>
     </entry>
@@ -68,7 +68,7 @@
             insert ignore into network_statistics.device_dim(device_mac,device_name,device_iface_wifi) (
                 select
                 distinct
-                device_mac,
+                t1.device_mac,
                 '',
                 1
                 from tmp_device_dim_normalize t1
@@ -110,7 +110,7 @@
                 left join gw_iface_dim t2 on t1.if_phys_address=t2.iface_mac
                 and t1.if_descr=t2.iface_phy_name
                 and t1.if_phys_name=t2.iface_name
-                where t2.device_key is null
+                where t2.iface_key is null
             );
         ]]>
     </entry>
@@ -155,31 +155,26 @@
 					select date_key from
 					date_dim
 					where aidi.date_connect=date
-					order by date_key desc limit 1
 				)
 				join time_dim td on td.time_key=(
 					select time_key from
 					time_dim
 					where aidi.time_connect=time
-					order by time_key desc limit 1
 				)
 				join device_dim dd1 on dd1.device_key=(
 					select device_key from
 					device_dim
 					where device_iface_wifi=1 and aidi.device_mac=device_mac
-					order by device_key desc limit 1
 				)
 				join ip_dim id on id.ip_key=(
 					select ip_key from
 					ip_dim
-					where ipv4=0
-					order by ip_key desc limit 1
+					where ip_key=-2147483648
 				)
 				join ap_dim ad on ad.ap_key=(
 					select ap_key from
 					ap_dim
 					where ap_key=-2147483648
-					order by ap_key desc limit 1
 				)
 				join gw_iface_dim gid on gid.iface_key=(
 					select iface_key from
@@ -187,21 +182,24 @@
 					where aidi.device_wlan_mac=iface_mac
 					and aidi.device_wlan_phy_name=iface_phy_name
 					and aidi.device_wlan_name=iface_name
-					order by iface_key desc limit 1
 				)
 				left join vendor_dim vd on vd.vendor_key=(
 					select vendor_key from
 					vendor_dim
 					where aidi.device_mac>>24=vendor_prefix
-					order by vendor_key desc limit 1
 				)
 				left join vendor_dim vd1 on vd1.vendor_key=(
 					select vendor_key from
 					vendor_dim
 					where aidi.device_wlan_mac>>24=vendor_prefix
-					order by vendor_key desc limit 1
 				)
 			)
+        ]]>
+    </entry>
+    <entry key="copyStgToArchive">
+        <![CDATA[
+            insert into igate_gw240_status_wifi_station_archive(poll_time, raw_data)
+            select poll_time, raw_data from igate_gw240_status_wifi_station_stg
         ]]>
     </entry>
 

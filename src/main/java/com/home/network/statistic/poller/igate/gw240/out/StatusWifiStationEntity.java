@@ -35,6 +35,8 @@ public class StatusWifiStationEntity {
     // another column in another table
 
     public StatusWifiStationRaw obtainStatusWifiStationRaw() {
-        return JsonUtil.fromJson(rawData, StatusWifiStationRaw.class);
+        var obj = JsonUtil.fromJson(rawData, StatusWifiStationRaw.class);
+        obj.setPollTime(this.pollTime);
+        return obj;
     }
 }

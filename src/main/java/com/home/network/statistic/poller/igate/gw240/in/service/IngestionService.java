@@ -7,6 +7,7 @@ import com.home.network.statistic.poller.igate.gw240.out.StatusWifiStationRepo;
 import com.home.network.statistic.poller.rfc1213.igate.in.Rfc1213SnmpIgateIfTableResponse;
 import com.home.network.statistic.poller.rfc1213.igate.in.Rfc1213SnmpIgateTarget;
 import com.home.network.statistic.poller.rfc1213.igate.in.SnmpIfTablePhyInfoRequest;
+import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +59,7 @@ public class IngestionService {
     }
 
     @SneakyThrows
+    @Timed(value = "igate.gw240.in.status_wifi_station")
     public void pollStatusWifiStation() {
         for (var host : hostCred) {
             log.info("get status wifi station for :{}", host);

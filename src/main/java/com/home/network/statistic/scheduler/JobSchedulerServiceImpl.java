@@ -7,6 +7,8 @@ import com.home.network.statistic.poller.aruba.iap.etl.job.ClientInfoJob;
 import com.home.network.statistic.poller.aruba.iap.in.job.ArubaSnmpAiPollApInfoJob;
 import com.home.network.statistic.poller.aruba.iap.in.job.ArubaSnmpAiPollClientInfoJob;
 import com.home.network.statistic.poller.aruba.iap.in.job.ArubaSnmpAiPollWlanTrafficJob;
+import com.home.network.statistic.poller.igate.gw240.etl.job.StatusWifiStationJob;
+import com.home.network.statistic.poller.igate.gw240.in.job.Igate240StatusWifiStationJob;
 import com.home.network.statistic.poller.rfc1213.igate.etl.job.Rfc1213IgateJob;
 import com.home.network.statistic.poller.rfc1213.igate.in.job.Rfc1213SnmpIgatePollingJob;
 import com.home.network.statistic.vendor.VendorJob;
@@ -46,6 +48,9 @@ public class JobSchedulerServiceImpl implements JobSchedulerService {
         jobList.add(Rfc1213SnmpIgatePollingJob.class);
         // vendor poll job
         jobList.add(VendorJob.class);
+        // igate240 web job
+        jobList.add(Igate240StatusWifiStationJob.class);
+        jobList.add(StatusWifiStationJob.class);
     }
 
     @Override

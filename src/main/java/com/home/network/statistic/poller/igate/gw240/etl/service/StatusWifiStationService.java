@@ -4,6 +4,7 @@ import com.home.network.statistic.common.model.ListSqlQuery;
 import com.home.network.statistic.poller.igate.gw240.etl.ClientWlanConnectEvent;
 import com.home.network.statistic.poller.igate.gw240.out.StatusWifiStationEntity;
 import com.home.network.statistic.poller.igate.gw240.out.StatusWifiStationWebDataRaw;
+import io.micrometer.core.annotation.Timed;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.JobExecutionContext;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -138,7 +139,7 @@ public class StatusWifiStationService implements BaseService {
                 // loop thru map, check if
                 // there is device in current batch that doesn't exist in state map
                 // that consider the device in map is disconnected
-                for (var stateIt = stateMap.entrySet().iterator(); it.hasNext(); ) {
+                for (var stateIt = stateMap.entrySet().iterator(); stateIt.hasNext(); ) {
                     var state = stateIt.next();
                     var stateVal = StatusWifiStationWebDataRaw.from(state.getValue().toString());
 
@@ -196,6 +197,7 @@ public class StatusWifiStationService implements BaseService {
     }
 
     @Override
+    @Timed(value = "igate.gw240.etl.status_wifi_station")
     public void start(JobExecutionContext context) {
         log.info("start");
 
