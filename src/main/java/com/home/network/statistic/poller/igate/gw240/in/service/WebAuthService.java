@@ -7,8 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
@@ -23,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 @Slf4j
 @Profile({"dev-executor","prd-executor"})
-public class Igate240WebAuthService {
+public class WebAuthService {
     private final RestClient restClient;
     private final ConcurrentHashMap<String, WebRequestInfo> cachedAuthDetail = new ConcurrentHashMap<>();
 

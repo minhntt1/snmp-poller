@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
+import com.home.network.statistic.common.util.JsonUtil;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -32,4 +33,8 @@ public class StatusWifiStationEntity {
     // but also have to consider json raw type in mysql
     // it likely supports join when joining json data with
     // another column in another table
+
+    public StatusWifiStationRaw obtainStatusWifiStationRaw() {
+        return JsonUtil.fromJson(rawData, StatusWifiStationRaw.class);
+    }
 }

@@ -28,6 +28,8 @@ public class RestClientConfig {
         SSLContext ctx = SSLContext.getInstance("TLS");
         ctx.init(null, new TrustManager[]{ trustAll }, new SecureRandom());
 
+        System.setProperty("jdk.internal.httpclient.disableHostnameVerification", "true");
+
         HttpClient client = HttpClient.newBuilder()
                 .sslContext(ctx)
                 .build();

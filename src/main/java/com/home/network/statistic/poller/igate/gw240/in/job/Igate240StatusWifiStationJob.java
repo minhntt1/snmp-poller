@@ -1,6 +1,6 @@
 package com.home.network.statistic.poller.igate.gw240.in.job;
 
-import com.home.network.statistic.poller.igate.gw240.in.service.Igate240StatusWifiStationService;
+import com.home.network.statistic.poller.igate.gw240.in.service.IngestionService;
 import org.quartz.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -8,10 +8,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 @DisallowConcurrentExecution
 public class Igate240StatusWifiStationJob implements Job {
     @Autowired(required = false)
-    private Igate240StatusWifiStationService igate240StatusWifiStationService;
+    private IngestionService ingestionService;
 
     @Override
     public void execute(JobExecutionContext jobExecutionContext) throws JobExecutionException {
-        igate240StatusWifiStationService.pollStatusWifiStation();
+        ingestionService.pollStatusWifiStation();
     }
 }

@@ -41,4 +41,12 @@ public class SqlQueryConfig {
         properties.loadFromXML(new ClassPathResource("etl_queries/rfc1213-igate-query.xml").getInputStream());
         return new ListSqlQuery(properties);
     }
+
+    @SneakyThrows
+    @Bean(name = "igate240StatusWifiStation")
+    ListSqlQuery getListIgate240StatusWifiStation() {
+        Properties properties = new Properties();
+        properties.loadFromXML(new ClassPathResource("etl_queries/igate240-status-wifi-station.xml").getInputStream());
+        return new ListSqlQuery(properties);
+    }
 }

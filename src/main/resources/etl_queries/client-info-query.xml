@@ -73,6 +73,7 @@
 				from network_statistics.aruba_iap_device_info_stg aidis
 				left join network_statistics.device_dim dd on aidis.device_mac=dd.device_mac
 				and aidis.device_name=dd.device_name
+                and dd.device_iface_wifi=1 -- to leverage index first on
 				where dd.device_key is null
 			)
         ]]>
