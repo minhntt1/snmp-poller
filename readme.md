@@ -4,7 +4,7 @@
 - prd-executor: used to run executor instances (ones executing the tasks) outside the container environment using container hostname rather than ip (ex: mysql)
 - prd-scheduler:  used to run scheduler instances (ones scheduling the tasks) outside the container environment with direct IP (ex: mysql)
 
-# Run on dev pofile - local
+# Common tasks
 Init environment: grafana, etc.
 ```
 cd docker_dev
@@ -21,6 +21,7 @@ Build and skip test
 gradle clean build -x test
 ```
 
+# Run on dev pofile - local
 Run executor  from java command line
 ```
 java '-Dspring.profiles.active=dev-executor' -jar ./build/libs/network-statistic-0.0.1-SNAPSHOT.jar

@@ -21,6 +21,7 @@ public class ArubaSnmpAiPollingService {
     private final ArubaAiApInfoRepository arubaAiApInfoRepository;
     private final ArubaAiClientInfoRepository arubaAiClientInfoRepository;
     private final ArubaAiWlanTrafficRepository arubaAiWlanTrafficRepository;
+    //todo: implement way to securely store credentials
     private final ArubaSnmpAiTarget arubaSnmpAiTarget = new ArubaSnmpAiTarget("udp:192.168.100.253/161");
 
     @Timed(value = "aruba.iap.in.polling.apinfo")

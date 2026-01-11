@@ -32,7 +32,7 @@ public class AppQuartzThreadPool implements ThreadPool {
     public void initialize() throws SchedulerConfigException {
         // total thread pool for all quartz scheduler
         // set this value equal to number of concurrent jobs across all schedulers
-        this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(9);
+        this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(11);
     }
 
     @Override

@@ -73,6 +73,7 @@
 				from network_statistics.aruba_iap_device_info_stg aidis
 				left join network_statistics.device_dim dd on aidis.device_mac=dd.device_mac
 				and aidis.device_name=dd.device_name
+                and dd.device_iface_wifi=1 -- to leverage index first on
 				where dd.device_key is null
 			)
         ]]>
@@ -377,9 +378,9 @@
     <entry key="moveStgToIngest">
         <![CDATA[
             rename table
-            aruba_iap_device_info_stg to tmp,
+            aruba_iap_device_info_stg to tmp_aruba_iap_device_info_stg,
             aruba_iap_device_info_stg_ingest to aruba_iap_device_info_stg,
-            tmp to aruba_iap_device_info_stg_ingest
+            tmp_aruba_iap_device_info_stg to aruba_iap_device_info_stg_ingest
         ]]>
     </entry>
 </properties>

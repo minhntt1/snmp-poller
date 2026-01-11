@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+    <entry key="addUndefinedIpDim">
+        <![CDATA[
+            insert ignore into ip_dim (ip_key, ipv4, ipv6) values(
+                -2147483648, 0, 0
+            );
+        ]]>
+    </entry>
+    <entry key="insertIntoDateDim">
+        <![CDATA[
+            insert ignore into date_dim(date) (
+                select distinct date(t1.poll_time)
+                from igate_gw240_status_wifi_station_stg t1
+                left join date_dim dd on date(t1.poll_time) = dd.date
+                where dd.date_key is null
+            )
+        ]]>
+    </entry>
+    <entry key="insertIntoTimeDim">
+        <![CDATA[
+            insert ignore into time_dim(time) (
+                select
+                distinct
+                time_to_sec(time(t1.poll_time))
+                from igate_gw240_status_wifi_station_stg t1
+                left join time_dim td on time_to_sec(time(t1.poll_time))=td.time
+                where td.time_key is null
+            )
+        ]]>
+    </entry>
+    <entry key="getAllStaging">
+        <![CDATA[
+            select * from igate_gw240_status_wifi_station_stg
+            order by id -- order id to get increasing time (id is primary key and indexed, ordered, but we want it more explicit)
+        ]]>
+    </entry>
+
+    <!--
+        normalization for data in raw data column requires
+        extra steps in app code, indead of mysql only
+        1. process on local machine
+        2. insert to temp table
+        3. use sql query to insert from temp tbl to real dim tbl
+       -->
+
+    <!-- temp table for device dim -->
+    <entry key="createTempTableForDeviceDimNormalize">
+        <![CDATA[
+            create temporary table  tmp_device_dim_normalize (
+                device_mac varchar(255) not null
+            );
+        ]]>
+    </entry>
+    <entry key="insertIntoTempTableForDeviceDimNormalize">
+        <![CDATA[
+            insert into tmp_device_dim_normalize values(?)
+        ]]>
+    </entry>
+    <entry key="dropTempTableForDeviceDimNormalize">
+        drop table tmp_device_dim_normalize;
+    </entry>
+    <!-- following code should be not inside a transaction   -->
+    <!--  but the src code need a transaction because to scope it within one conenction, have to review carefully  -->
+    <entry key="insertIntoDeviceDim">
+        <![CDATA[
+            insert ignore into network_statistics.device_dim(device_mac,device_name,device_iface_wifi) (
+                select
+                distinct
+                t1.device_mac,
+                '',
+                1
+                from tmp_device_dim_normalize t1
+                left join device_dim t2 on t1.device_mac=t2.device_mac
+                and t2.device_iface_wifi=1
+                where t2.device_key is null
+            );
+        ]]>
+    </entry>
+
+    <!-- temp table for gw iface dim -->
+    <entry key="createTempTableForGwIfaceDimNormalize">
+        <![CDATA[
+            create temporary table  tmp_gw_device_dim_normalize (
+                if_descr varchar(255) not null,
+                if_phys_address bigint not null,
+                if_phys_name varchar(255) not null
+            );
+        ]]>
+    </entry>
+    <entry key="insertIntoTempTableForGwIfaceDimNormalize">
+        <![CDATA[
+            insert into tmp_gw_device_dim_normalize values(?,?,?)
+        ]]>
+    </entry>
+    <entry key="dropTempTableForGwIfaceDimNormalize">
+        drop table tmp_gw_device_dim_normalize;
+    </entry>
+    <!-- following code should be not inside a transaction   -->
+    <entry key="insertIntoGwIfaceDim">
+        <![CDATA[
+            insert ignore into gw_iface_dim(iface_mac,iface_phy_name,iface_name) (
+                select
+                distinct
+                t1.if_phys_address,
+                t1.if_descr,
+                t1.if_phys_name
+                from tmp_gw_device_dim_normalize t1
+                left join gw_iface_dim t2 on t1.if_phys_address=t2.iface_mac
+                and t1.if_descr=t2.iface_phy_name
+                and t1.if_phys_name=t2.iface_name
+                where t2.iface_key is null
+            );
+        ]]>
+    </entry>
+
+    <!--  temp table for wlan connect events  -->
+    <entry key="createTempForUpdateFactTableDeviceWlanConnections">
+        create temporary table tmp_device_wlan_connections_fact (
+            `device_mac` bigint,
+            `device_wlan_mac` bigint,
+            `device_wlan_phy_name` varchar(255),
+            `device_wlan_name` varchar(255),
+            `date_connect` date,
+            `time_connect` int,
+            `connect_status` int
+        )
+    </entry>
+    <entry key="insertTmpFactToTempTableUpdateFactTableDeviceWlanConnections">
+        insert into tmp_device_wlan_connections_fact
+        values (?,?,?,?,?,?,?)
+    </entry>
+    <entry key="dropTempForUpdateFactTableDeviceWlanConnections">
+        drop table tmp_device_wlan_connections_fact
+    </entry>
+    <entry key="updateFactTableDeviceWlanConnections">
+        <![CDATA[
+            insert ignore into device_wlan_connections_fact (
+				select
+
+				dd.date_key,
+				td.time_key,
+				dd1.device_key,
+				id.ip_key,
+				ad.ap_key,
+				gid.iface_key,
+				ifnull(vd.vendor_key,-2147483648),
+				ifnull(vd1.vendor_key,-2147483648),
+				aidi.connect_status
+
+				from tmp_device_wlan_connections_fact aidi
+
+				join date_dim dd on dd.date_key=(
+					select date_key from
+					date_dim
+					where aidi.date_connect=date
+				)
+				join time_dim td on td.time_key=(
+					select time_key from
+					time_dim
+					where aidi.time_connect=time
+				)
+				join device_dim dd1 on dd1.device_key=(
+					select device_key from
+					device_dim
+					where device_iface_wifi=1 and aidi.device_mac=device_mac
+				)
+				join ip_dim id on id.ip_key=(
+					select ip_key from
+					ip_dim
+					where ip_key=-2147483648
+				)
+				join ap_dim ad on ad.ap_key=(
+					select ap_key from
+					ap_dim
+					where ap_key=-2147483648
+				)
+				join gw_iface_dim gid on gid.iface_key=(
+					select iface_key from
+					gw_iface_dim
+					where aidi.device_wlan_mac=iface_mac
+					and aidi.device_wlan_phy_name=iface_phy_name
+					and aidi.device_wlan_name=iface_name
+				)
+				left join vendor_dim vd on vd.vendor_key=(
+					select vendor_key from
+					vendor_dim
+					where aidi.device_mac>>24=vendor_prefix
+				)
+				left join vendor_dim vd1 on vd1.vendor_key=(
+					select vendor_key from
+					vendor_dim
+					where aidi.device_wlan_mac>>24=vendor_prefix
+				)
+			)
+        ]]>
+    </entry>
+    <entry key="copyStgToArchive">
+        <![CDATA[
+            insert into igate_gw240_status_wifi_station_archive(poll_time, raw_data)
+            select poll_time, raw_data from igate_gw240_status_wifi_station_stg
+        ]]>
+    </entry>
+
+    <!-- following clean up queries should be outside main transaction -->
+    <entry key="dropCurrentStg">
+        <![CDATA[
+            drop table igate_gw240_status_wifi_station_stg
+        ]]>
+    </entry>
+    <entry key="createNewStg">
+        <![CDATA[
+            create table if not exists
+            igate_gw240_status_wifi_station_stg like igate_gw240_status_wifi_station_stg_ingest
+        ]]>
+    </entry>
+    <entry key="moveStgToIngest">
+        <![CDATA[
+            rename table
+            igate_gw240_status_wifi_station_stg to tmp_igate_gw240_status_wifi_station_stg,
+            igate_gw240_status_wifi_station_stg_ingest to igate_gw240_status_wifi_station_stg,
+            tmp_igate_gw240_status_wifi_station_stg to igate_gw240_status_wifi_station_stg_ingest
+        ]]>
+    </entry>
+</properties>
